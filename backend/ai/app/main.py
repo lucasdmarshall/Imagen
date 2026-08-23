@@ -43,14 +43,28 @@ class Perimeter(BaseModel):
     prompt: str
 
 
+class PromptModel(str, Enum):
+    gemini_flash = "gemini_flash"  # google/gemini-3.7-flash
+    gpt_luna = "gpt_luna"  # openai/gpt-5.6-luna
+    gpt_mini = "gpt_mini"  # openai/gpt-5-mini
+
+
 class PromptRequest(BaseModel):
     base_prompt: str = Field(..., description="Global prompt for the whole image.")
     perimeters: list[Perimeter] = Field(default_factory=list)
+    model: PromptModel | None = Field(
+        default=None, description="Text model; defaults to server default."
+    )
 
 
 @app.post("/prompts/generate")
 async def generate_prompt(req: PromptRequest) -> dict:
-    """Compose a structured, perimeter-aware prompt via the text model."""
+    """Compose a structured, perimeter-aware prompt via the chosen text model."""
+    model_id = {
+        PromptModel.gemini_flash: settings.prompt_model_gemini_flash,
+        PromptModel.gpt_luna: settings.prompt_model_gpt_luna,
+        PromptModel.gpt_mini: settings.prompt_model_gpt_mini,
+    }.get(req.model, settings.prompt_model_default)
     system = (
         "You are SHOW's prompt engine. Compose one precise image prompt that "
         "respects each labeled perimeter region and its per-region instruction."
@@ -63,7 +77,7 @@ async def generate_prompt(req: PromptRequest) -> dict:
 
     try:
         result = await openrouter.chat_completion(
-            settings.prompt_model,
+            model_id,
             [
                 {"role": "system", "content": system},
                 {"role": "user", "content": user},

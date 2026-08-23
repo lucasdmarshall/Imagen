@@ -23,10 +23,11 @@ Both apps share one design system and talk to the same backend.
 
 ### Two modes (Client App)
 
-1. **Prompt Generator** — build and refine structured, perimeter-aware text prompts.
+1. **Prompt Generator** — build/refine perimeter-aware prompts. Text models:
+   `google/gemini-3.7-flash` (default), `openai/gpt-5.6-luna`, `openai/gpt-5-mini`.
 2. **Image Generator** — render images from prompts. User picks one of two models:
-   - **Gemini 3.1 Flash "Nano Banana Pro"**
-   - **GPT Image** ("GPT 2 image" — *model id to be confirmed*)
+   - **Nano Banana Pro** — `google/gemini-3.1-flash-lite-image`
+   - **GPT Image 2** — `openai/gpt-image-2`
 
 All AI calls are routed through **OpenRouter.ai**.
 
@@ -56,9 +57,10 @@ scale, alignment to a grid, and restrained use of dividers** — not through
 outlines, drop shadows, or card containers.
 
 - **Fonts:**
-  - Latin: **Plus Jakarta Sans**
-  - Myanmar: **TBD** (to be specified by the team)
-- **Icons:** **Pagifye Icons** *(icon package/source to be confirmed & wired up)*
+  - Latin: **Plus Jakarta Sans** (via `google_fonts`)
+  - Myanmar: **NamKhone** (`assets/NamKhoneUnicode.ttf`, bundled in the client;
+    applied via `ShowType.myanmarFontFamily`)
+- **Icons:** **Hero Icons** (`heroicons` pub package)
 - **Color:**
   - **Gradients are strictly prohibited.** Flat, matte fills only.
   - Greys and black: **matte** tones (no gloss, no gradient).
@@ -176,16 +178,22 @@ locally. Production values come from the deployment environment.
 
 ## 8. Open items to confirm
 
-These were noted during setup and need a decision from the team:
+**Resolved:**
 
-1. **Pagifye Icons** — confirm the exact icon set/package and how it is licensed
-   & pulled into Flutter (font, SVG set, or pub package).
-2. **"GPT 2 image"** — confirm the exact OpenRouter model id (assumed to be an
-   OpenAI GPT image model).
-3. **"Gemini 3.1 Flash Nano Banana Pro"** — confirm the exact OpenRouter model id.
-4. **Myanmar font** — to be specified.
-5. **Auth strategy** — email/password, OTP, social? (affects profile system).
-6. **Payments** — store & subscription billing provider (Play Billing, Stripe, etc.).
+- **Icons** — Hero Icons (`heroicons` package). ✔
+- **Text models** — `google/gemini-3.7-flash` (default), `openai/gpt-5.6-luna`,
+  `openai/gpt-5-mini`. ✔
+- **Image models** — `google/gemini-3.1-flash-lite-image` (Nano Banana Pro),
+  `openai/gpt-image-2` (GPT Image 2). ✔
+- **Myanmar font** — NamKhone (`NamKhoneUnicode.ttf`), bundled in the client. ✔
+- **Payments** — AYA Pay + KBZ Pay, manual transfer + proof flow. ✔
+
+**Still open:**
+
+1. **Payment details** — receiver phone (`09........`) and the AYA/KBZ **QR
+   images** are placeholders; set real values before launch.
+2. **Auth strategy** — email/password, OTP, social? (affects profile system).
+3. **Admin app** — should it also bundle the NamKhone font? (currently client-only).
 
 ---
 

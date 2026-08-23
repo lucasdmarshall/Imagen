@@ -7,6 +7,7 @@ import (
 	"time"
 
 	"github.com/show/api/internal/config"
+	"github.com/show/api/internal/payments"
 )
 
 // Server wires configuration and the HTTP router together.
@@ -39,6 +40,10 @@ func (s *Server) Routes() http.Handler {
 	mux.HandleFunc("GET /api/v1/subscriptions/plans", s.stub("list plans"))
 	mux.HandleFunc("GET /api/v1/subscriptions/me", s.stub("current subscription"))
 
+	// --- Payments (AYA Pay / KBZ Pay manual transfer) ---
+	mux.HandleFunc("GET /api/v1/payments/methods", s.handlePaymentMethods)
+	mux.HandleFunc("POST /api/v1/payments/proof", s.stub("submit payment proof"))
+
 	// --- Generation (proxied to the Python AI service) ---
 	mux.HandleFunc("POST /api/v1/prompts/generate", s.stub("generate prompt"))
 	mux.HandleFunc("POST /api/v1/images/generate", s.stub("generate image"))
@@ -52,6 +57,10 @@ func (s *Server) handleHealth(w http.ResponseWriter, _ *http.Request) {
 		"env":    s.cfg.Environment,
 		"time":   time.Now().UTC().Format(time.RFC3339),
 	})
+}
+
+func (s *Server) handlePaymentMethods(w http.ResponseWriter, _ *http.Request) {
+	writeJSON(w, http.StatusOK, map[string]any{"methods": payments.Methods()})
 }
 
 // stub returns a placeholder handler describing an unimplemented endpoint.

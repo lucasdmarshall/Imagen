@@ -1,7 +1,11 @@
 import 'package:flutter/material.dart';
 import 'package:show_ui/show_ui.dart';
 
-void main() => runApp(const ShowClientApp());
+void main() {
+  // Register the bundled Myanmar face so SHOW type tokens fall back to it.
+  ShowType.myanmarFontFamily = 'NamKhone';
+  runApp(const ShowClientApp());
+}
 
 class ShowClientApp extends StatelessWidget {
   const ShowClientApp({super.key});

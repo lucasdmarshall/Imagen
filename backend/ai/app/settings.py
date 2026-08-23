@@ -14,14 +14,18 @@ class Settings(BaseSettings):
     openrouter_api_key: str = ""
     openrouter_base_url: str = "https://openrouter.ai/api/v1"
 
-    # Text model used by the Prompt Generator mode.
-    prompt_model: str = "openai/gpt-4o-mini"
+    # Text models selectable in the Prompt Generator mode.
+    prompt_model_gemini_flash: str = "google/gemini-3.7-flash"
+    prompt_model_gpt_luna: str = "openai/gpt-5.6-luna"
+    prompt_model_gpt_mini: str = "openai/gpt-5-mini"
+    # Default when the client doesn't specify one.
+    prompt_model_default: str = "google/gemini-3.7-flash"
 
-    # Image model ids. NOTE: confirm exact OpenRouter ids (PROJECT_OVERVIEW §8).
-    #   "nano_banana_pro" -> Gemini 3.1 Flash "Nano Banana Pro"
-    #   "gpt_image"       -> GPT image model ("GPT 2 image")
-    image_model_nano_banana_pro: str = "google/gemini-3.1-flash-image"
-    image_model_gpt_image: str = "openai/gpt-image-1"
+    # Image model ids.
+    #   "nano_banana_pro" -> Gemini 3.1 Flash Lite "Nano Banana Pro"
+    #   "gpt_image"       -> GPT Image 2
+    image_model_nano_banana_pro: str = "google/gemini-3.1-flash-lite-image"
+    image_model_gpt_image: str = "openai/gpt-image-2"
 
     app_env: str = "development"
 
