@@ -1,0 +1,20 @@
+name: show_ui
+description: "SHOW shared design system — Swiss-style, matte, borderless tokens & theme."
+version: 0.0.1
+publish_to: "none"
+
+environment:
+  sdk: ^3.12.2
+  flutter: ">=1.17.0"
+
+dependencies:
+  flutter:
+    sdk: flutter
+  google_fonts: ^6.2.1
+
+dev_dependencies:
+  flutter_test:
+    sdk: flutter
+  flutter_lints: ^6.0.0
+
+flutter:

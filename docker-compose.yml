@@ -1,0 +1,23 @@
+# Local dev Postgres. Production DB is provided separately by the team.
+# Usage:  docker compose up -d
+services:
+  postgres:
+    image: postgres:16-alpine
+    container_name: show_postgres
+    restart: unless-stopped
+    environment:
+      POSTGRES_USER: ${POSTGRES_USER:-show}
+      POSTGRES_PASSWORD: ${POSTGRES_PASSWORD:-show_dev_password}
+      POSTGRES_DB: ${POSTGRES_DB:-show}
+    ports:
+      - "5432:5432"
+    volumes:
+      - show_pgdata:/var/lib/postgresql/data
+    healthcheck:
+      test: ["CMD-SHELL", "pg_isready -U ${POSTGRES_USER:-show}"]
+      interval: 5s
+      timeout: 5s
+      retries: 5
+
+volumes:
+  show_pgdata:

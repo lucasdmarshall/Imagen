@@ -1,0 +1,101 @@
+"""SHOW AI service — FastAPI.
+
+Handles the two AI-backed operations behind the app's two modes:
+  - Prompt Generator  -> POST /prompts/generate
+  - Image Generator   -> POST /images/generate  (model: nano_banana_pro | gpt_image)
+
+All model calls go through OpenRouter.ai. This service is internal; the Go API
+is the public gateway.
+"""
+from __future__ import annotations
+
+from enum import Enum
+
+from fastapi import FastAPI, HTTPException
+from pydantic import BaseModel, Field
+
+from . import openrouter
+from .settings import settings
+
+app = FastAPI(title="SHOW AI Service", version="0.1.0")
+
+
+@app.get("/health")
+async def health() -> dict:
+    return {
+        "status": "ok",
+        "env": settings.app_env,
+        "openrouter_key_configured": bool(settings.openrouter_api_key),
+    }
+
+
+# --- Prompt Generator ---------------------------------------------------------
+
+
+class Perimeter(BaseModel):
+    """A pixel-perfect region the user assigns a sub-prompt to."""
+
+    label: str
+    x: float
+    y: float
+    width: float
+    height: float
+    prompt: str
+
+
+class PromptRequest(BaseModel):
+    base_prompt: str = Field(..., description="Global prompt for the whole image.")
+    perimeters: list[Perimeter] = Field(default_factory=list)
+
+
+@app.post("/prompts/generate")
+async def generate_prompt(req: PromptRequest) -> dict:
+    """Compose a structured, perimeter-aware prompt via the text model."""
+    system = (
+        "You are SHOW's prompt engine. Compose one precise image prompt that "
+        "respects each labeled perimeter region and its per-region instruction."
+    )
+    regions = "\n".join(
+        f"- {p.label} @({p.x},{p.y},{p.width}x{p.height}): {p.prompt}"
+        for p in req.perimeters
+    )
+    user = f"Base prompt: {req.base_prompt}\nPerimeters:\n{regions or '(none)'}"
+
+    try:
+        result = await openrouter.chat_completion(
+            settings.prompt_model,
+            [
+                {"role": "system", "content": system},
+                {"role": "user", "content": user},
+            ],
+        )
+    except openrouter.OpenRouterError as e:
+        raise HTTPException(status_code=502, detail=str(e)) from e
+    return result
+
+
+# --- Image Generator ----------------------------------------------------------
+
+
+class ImageModel(str, Enum):
+    nano_banana_pro = "nano_banana_pro"  # Gemini 3.1 Flash
+    gpt_image = "gpt_image"  # GPT image model
+
+
+class ImageRequest(BaseModel):
+    prompt: str
+    model: ImageModel = ImageModel.nano_banana_pro
+
+
+@app.post("/images/generate")
+async def generate_image(req: ImageRequest) -> dict:
+    model_id = {
+        ImageModel.nano_banana_pro: settings.image_model_nano_banana_pro,
+        ImageModel.gpt_image: settings.image_model_gpt_image,
+    }[req.model]
+
+    try:
+        result = await openrouter.generate_image(model_id, req.prompt)
+    except openrouter.OpenRouterError as e:
+        raise HTTPException(status_code=502, detail=str(e)) from e
+    return result

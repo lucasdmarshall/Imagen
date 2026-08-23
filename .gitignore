@@ -1,0 +1,43 @@
+# ---- Secrets ----
+.env
+*.env.local
+**/.env
+
+# ---- Flutter / Dart ----
+.dart_tool/
+.flutter-plugins
+.flutter-plugins-dependencies
+build/
+.pub-cache/
+.pub/
+**/doc/api/
+*.iml
+.idea/
+# Keep committed lockfiles for app reproducibility, ignore for the package.
+packages/*/pubspec.lock
+
+# ---- Android ----
+**/android/.gradle/
+**/android/local.properties
+**/android/**/GeneratedPluginRegistrant.*
+**/android/key.properties
+*.keystore
+*.jks
+
+# ---- Go ----
+backend/api/bin/
+*.exe
+*.test
+*.out
+
+# ---- Python ----
+backend/ai/.venv/
+__pycache__/
+*.py[cod]
+.pytest_cache/
+.mypy_cache/
+
+# ---- OS / editors ----
+.DS_Store
+Thumbs.db
+.vscode/
