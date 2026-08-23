@@ -80,8 +80,9 @@ outlines, drop shadows, or card containers.
 - User profile system (auth, profile, preferences)
 - **Prompt Generator** mode (perimeter-driven)
 - **Image Generator** mode (model choice: Nano Banana Pro / GPT Image)
-- Store
+- Store — **subscriptions + add-on credit packs**
 - Subscriptions: **Free**, **Pro — Monthly**, **Pro — Yearly**
+- Credits (balance + ledger), notifications
 - Generation history / library
 
 ### Admin App
@@ -128,6 +129,37 @@ outlines, drop shadows, or card containers.
   - Production: server provided by the team.
   - **Dev: no server is provided** → local Postgres via Docker Compose (included),
     configured through environment variables.
+
+### API surface (Go)
+
+Public: `POST /auth/register`, `POST /auth/login`, `GET /store/items`,
+`GET /subscriptions/plans`, `GET /payments/methods`.
+
+Authenticated (bearer token): `POST /auth/logout`, `GET|PATCH /profile`,
+`GET /credits/balance`, `GET /credits/history`, `GET /notifications`,
+`POST /notifications/{id}/read`, `GET /subscriptions/me`,
+`POST /prompts/generate`, `POST /images/generate`, `POST /payments/proof`.
+
+Admin (admin role): `GET /admin/users`, `GET /admin/users/{id}`,
+`POST /admin/users/{id}/role|credits|plan`.
+
+**Credits:** every AI call consumes credits (prompt = 1, image = 5), refunded on
+failure. Plans grant monthly credits; add-on packs top up. All movements are
+recorded in an immutable ledger with running balance.
+
+### Disposable dev tools (delete after development)
+
+`internal/devtools` mounts **unauthenticated** `/api/dev/*` routes (development
+only, guarded by `DEV_TOOLS`), driven by an interactive CLI at `cmd/devcli`:
+create users, add/deduct credits, run AI calls, set plans/roles, send
+notifications. **To remove entirely:** delete `internal/devtools/`,
+`cmd/devcli/`, and the `DevTools` wiring in `config` + `server`.
+
+Run it with:
+
+```bash
+cd backend/api && go run ./cmd/devcli
+```
 
 ### Why two backend services
 - Go handles high-throughput, strongly-typed CRUD and business logic.

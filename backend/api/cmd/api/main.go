@@ -13,15 +13,24 @@ import (
 	"syscall"
 	"time"
 
+	"github.com/show/api/internal/aiclient"
 	"github.com/show/api/internal/config"
 	"github.com/show/api/internal/server"
+	"github.com/show/api/internal/services"
+	"github.com/show/api/internal/store"
 )
 
 func main() {
 	log := slog.New(slog.NewJSONHandler(os.Stdout, nil))
 	cfg := config.Load()
 
-	srv := server.New(cfg, log)
+	// Dev has no Postgres server, so default to the in-memory store. A
+	// Postgres-backed store.Store can replace this when DATABASE_URL is set.
+	st := store.NewMemory()
+	ai := aiclient.New(cfg.AIServiceURL)
+	svc := services.New(st, ai)
+
+	srv := server.New(cfg, log, svc)
 	httpSrv := &http.Server{
 		Addr:              ":" + cfg.Port,
 		Handler:           srv.Routes(),

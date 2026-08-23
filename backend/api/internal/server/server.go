@@ -1,93 +1,95 @@
 package server
 
 import (
-	"encoding/json"
 	"log/slog"
 	"net/http"
 	"time"
 
 	"github.com/show/api/internal/config"
+	"github.com/show/api/internal/devtools"
+	"github.com/show/api/internal/httpx"
 	"github.com/show/api/internal/payments"
+	"github.com/show/api/internal/services"
 )
 
-// Server wires configuration and the HTTP router together.
+// Server wires configuration, services, and the HTTP router together.
 type Server struct {
 	cfg config.Config
 	log *slog.Logger
+	svc *services.Services
 }
 
-func New(cfg config.Config, log *slog.Logger) *Server {
-	return &Server{cfg: cfg, log: log}
+func New(cfg config.Config, log *slog.Logger, svc *services.Services) *Server {
+	return &Server{cfg: cfg, log: log, svc: svc}
 }
 
-// Routes builds the HTTP handler. Uses Go 1.22+ method+path patterns.
-//
-// This is a skeleton: resource handlers return stubs so the API boots and is
-// callable end-to-end before real CRUD + Postgres are implemented.
+// Routes builds the HTTP handler (Go 1.22+ method+path patterns).
 func (s *Server) Routes() http.Handler {
 	mux := http.NewServeMux()
+	auth := s.svc.Auth
 
+	// --- Public ---
 	mux.HandleFunc("GET /healthz", s.handleHealth)
-
-	// --- Users / profile ---
-	mux.HandleFunc("GET /api/v1/users/me", s.stub("get current user profile"))
-	mux.HandleFunc("PATCH /api/v1/users/me", s.stub("update profile"))
-
-	// --- Store ---
-	mux.HandleFunc("GET /api/v1/store/items", s.stub("list store items"))
-
-	// --- Subscriptions (Free / Pro Monthly / Pro Yearly) ---
-	mux.HandleFunc("GET /api/v1/subscriptions/plans", s.stub("list plans"))
-	mux.HandleFunc("GET /api/v1/subscriptions/me", s.stub("current subscription"))
-
-	// --- Payments (AYA Pay / KBZ Pay manual transfer) ---
+	mux.HandleFunc("POST /api/v1/auth/register", s.handleRegister)
+	mux.HandleFunc("POST /api/v1/auth/login", s.handleLogin)
+	mux.HandleFunc("GET /api/v1/store/items", s.handleStoreItems)
+	mux.HandleFunc("GET /api/v1/subscriptions/plans", s.handlePlans)
 	mux.HandleFunc("GET /api/v1/payments/methods", s.handlePaymentMethods)
-	mux.HandleFunc("POST /api/v1/payments/proof", s.stub("submit payment proof"))
 
-	// --- Generation (proxied to the Python AI service) ---
-	mux.HandleFunc("POST /api/v1/prompts/generate", s.stub("generate prompt"))
-	mux.HandleFunc("POST /api/v1/images/generate", s.stub("generate image"))
+	// --- Authenticated (user) ---
+	mux.HandleFunc("POST /api/v1/auth/logout", httpx.Auth(auth, s.handleLogout))
+	mux.HandleFunc("GET /api/v1/profile", httpx.Auth(auth, s.handleGetProfile))
+	mux.HandleFunc("PATCH /api/v1/profile", httpx.Auth(auth, s.handleUpdateProfile))
+	mux.HandleFunc("GET /api/v1/credits/balance", httpx.Auth(auth, s.handleBalance))
+	mux.HandleFunc("GET /api/v1/credits/history", httpx.Auth(auth, s.handleCreditHistory))
+	mux.HandleFunc("GET /api/v1/notifications", httpx.Auth(auth, s.handleNotifications))
+	mux.HandleFunc("POST /api/v1/notifications/{id}/read", httpx.Auth(auth, s.handleReadNotification))
+	mux.HandleFunc("GET /api/v1/subscriptions/me", httpx.Auth(auth, s.handleMySubscription))
+	mux.HandleFunc("POST /api/v1/prompts/generate", httpx.Auth(auth, s.handleGeneratePrompt))
+	mux.HandleFunc("POST /api/v1/images/generate", httpx.Auth(auth, s.handleGenerateImage))
+	mux.HandleFunc("POST /api/v1/payments/proof", httpx.Auth(auth, s.handlePaymentProof))
+
+	// --- Admin ---
+	mux.HandleFunc("GET /api/v1/admin/users", httpx.AdminOnly(auth, s.handleAdminListUsers))
+	mux.HandleFunc("GET /api/v1/admin/users/{id}", httpx.AdminOnly(auth, s.handleAdminUserDetail))
+	mux.HandleFunc("POST /api/v1/admin/users/{id}/role", httpx.AdminOnly(auth, s.handleAdminSetRole))
+	mux.HandleFunc("POST /api/v1/admin/users/{id}/credits", httpx.AdminOnly(auth, s.handleAdminAdjustCredits))
+	mux.HandleFunc("POST /api/v1/admin/users/{id}/plan", httpx.AdminOnly(auth, s.handleAdminSetPlan))
+
+	// --- DISPOSABLE dev tools (development only) ---
+	// Delete the internal/devtools package and this block after development.
+	if s.cfg.DevTools {
+		devtools.Mount(mux, s.svc, s.log)
+		s.log.Warn("DEV TOOLS ENABLED — /api/dev/* mounted; do not enable in production")
+	}
 
 	return s.withMiddleware(mux)
 }
 
 func (s *Server) handleHealth(w http.ResponseWriter, _ *http.Request) {
-	writeJSON(w, http.StatusOK, map[string]any{
-		"status": "ok",
-		"env":    s.cfg.Environment,
-		"time":   time.Now().UTC().Format(time.RFC3339),
+	httpx.JSON(w, http.StatusOK, map[string]any{
+		"status":   "ok",
+		"env":      s.cfg.Environment,
+		"devTools": s.cfg.DevTools,
+		"time":     time.Now().UTC().Format(time.RFC3339),
 	})
 }
 
 func (s *Server) handlePaymentMethods(w http.ResponseWriter, _ *http.Request) {
-	writeJSON(w, http.StatusOK, map[string]any{"methods": payments.Methods()})
+	httpx.JSON(w, http.StatusOK, map[string]any{"methods": payments.Methods()})
 }
 
-// stub returns a placeholder handler describing an unimplemented endpoint.
-func (s *Server) stub(desc string) http.HandlerFunc {
-	return func(w http.ResponseWriter, _ *http.Request) {
-		writeJSON(w, http.StatusNotImplemented, map[string]any{
-			"error":  "not_implemented",
-			"detail": desc,
-		})
-	}
+func (s *Server) handlePaymentProof(w http.ResponseWriter, r *http.Request) {
+	// TODO(payments): persist uploaded proof for admin review.
+	httpx.JSON(w, http.StatusAccepted, map[string]string{"status": "received"})
 }
 
-// withMiddleware applies logging + JSON content type to every request.
 func (s *Server) withMiddleware(next http.Handler) http.Handler {
 	return http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
 		start := time.Now()
-		w.Header().Set("Content-Type", "application/json")
 		next.ServeHTTP(w, r)
 		s.log.Info("request",
-			"method", r.Method,
-			"path", r.URL.Path,
-			"dur_ms", time.Since(start).Milliseconds(),
-		)
+			"method", r.Method, "path", r.URL.Path,
+			"dur_ms", time.Since(start).Milliseconds())
 	})
-}
-
-func writeJSON(w http.ResponseWriter, status int, body any) {
-	w.WriteHeader(status)
-	_ = json.NewEncoder(w).Encode(body)
 }
