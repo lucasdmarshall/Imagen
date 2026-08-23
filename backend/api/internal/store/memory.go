@@ -8,25 +8,32 @@ import (
 	"github.com/show/api/internal/domain"
 )
 
+type session struct {
+	userID    string
+	expiresAt time.Time
+}
+
 // Memory is a thread-safe, in-memory Store for development and tests.
 type Memory struct {
 	mu            sync.RWMutex
 	users         map[string]*domain.User // by ID
 	emailIndex    map[string]string       // email -> ID
-	sessions      map[string]string       // token -> userID
+	sessions      map[string]session      // token -> session
 	subs          map[string]*domain.Subscription
 	credits       map[string][]*domain.CreditTransaction // by userID (ordered)
 	notifications map[string][]*domain.Notification      // by userID
+	idem          map[string]IdempotentResult            // idempotency key -> result
 }
 
 func NewMemory() *Memory {
 	return &Memory{
 		users:         map[string]*domain.User{},
 		emailIndex:    map[string]string{},
-		sessions:      map[string]string{},
+		sessions:      map[string]session{},
 		subs:          map[string]*domain.Subscription{},
 		credits:       map[string][]*domain.CreditTransaction{},
 		notifications: map[string][]*domain.Notification{},
+		idem:          map[string]IdempotentResult{},
 	}
 }
 
@@ -91,21 +98,27 @@ func (m *Memory) ListUsers() ([]*domain.User, error) {
 
 // --- Sessions ---
 
-func (m *Memory) CreateSession(token, userID string) error {
+func (m *Memory) CreateSession(token, userID string, expiresAt time.Time) error {
 	m.mu.Lock()
 	defer m.mu.Unlock()
-	m.sessions[token] = userID
+	m.sessions[token] = session{userID: userID, expiresAt: expiresAt}
 	return nil
 }
 
 func (m *Memory) SessionUser(token string) (string, error) {
 	m.mu.RLock()
-	defer m.mu.RUnlock()
-	id, ok := m.sessions[token]
+	s, ok := m.sessions[token]
+	m.mu.RUnlock()
 	if !ok {
 		return "", ErrNotFound
 	}
-	return id, nil
+	if time.Now().After(s.expiresAt) {
+		m.mu.Lock()
+		delete(m.sessions, token)
+		m.mu.Unlock()
+		return "", ErrNotFound
+	}
+	return s.userID, nil
 }
 
 func (m *Memory) DeleteSession(token string) error {
@@ -113,6 +126,34 @@ func (m *Memory) DeleteSession(token string) error {
 	defer m.mu.Unlock()
 	delete(m.sessions, token)
 	return nil
+}
+
+// --- Idempotency ---
+
+func (m *Memory) GetIdempotent(key string) (*IdempotentResult, bool) {
+	m.mu.RLock()
+	defer m.mu.RUnlock()
+	r, ok := m.idem[key]
+	if !ok {
+		return nil, false
+	}
+	cp := r
+	return &cp, true
+}
+
+// SaveIdempotent stores r under key only if absent, returning the winning entry
+// and whether it already existed (atomic check-and-set).
+func (m *Memory) SaveIdempotent(key string, r IdempotentResult) (IdempotentResult, bool) {
+	m.mu.Lock()
+	defer m.mu.Unlock()
+	if existing, ok := m.idem[key]; ok {
+		return existing, true
+	}
+	if r.CreatedAt.IsZero() {
+		r.CreatedAt = time.Now().UTC()
+	}
+	m.idem[key] = r
+	return r, false
 }
 
 // --- Subscriptions ---

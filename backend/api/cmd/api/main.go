@@ -35,6 +35,10 @@ func main() {
 		Addr:              ":" + cfg.Port,
 		Handler:           srv.Routes(),
 		ReadHeaderTimeout: 10 * time.Second,
+		ReadTimeout:       30 * time.Second,
+		WriteTimeout:      3 * time.Minute, // AI proxy calls can be slow.
+		IdleTimeout:       120 * time.Second,
+		MaxHeaderBytes:    1 << 16,
 	}
 
 	go func() {

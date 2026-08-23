@@ -5,6 +5,7 @@ package store
 
 import (
 	"errors"
+	"time"
 
 	"github.com/show/api/internal/domain"
 )
@@ -13,6 +14,13 @@ var (
 	ErrNotFound  = errors.New("not found")
 	ErrEmailTaken = errors.New("email already registered")
 )
+
+// IdempotentResult is a cached response for a mutating request.
+type IdempotentResult struct {
+	Status    int
+	Body      []byte
+	CreatedAt time.Time
+}
 
 // Store is the persistence boundary. Every service depends on this interface,
 // never on a concrete DB, so the backend runs in-memory today and on Postgres
@@ -25,10 +33,16 @@ type Store interface {
 	UpdateUser(u *domain.User) error
 	ListUsers() ([]*domain.User, error)
 
-	// Sessions (opaque bearer tokens)
-	CreateSession(token, userID string) error
+	// Sessions (opaque bearer tokens). Expired sessions resolve as ErrNotFound.
+	CreateSession(token, userID string, expiresAt time.Time) error
 	SessionUser(token string) (string, error)
 	DeleteSession(token string) error
+
+	// Idempotency: store/replay responses for mutating requests keyed by a
+	// caller-supplied Idempotency-Key (scoped per user/IP + method + path).
+	// SaveIdempotent returns (existing, true) if the key was already stored.
+	GetIdempotent(key string) (*IdempotentResult, bool)
+	SaveIdempotent(key string, r IdempotentResult) (IdempotentResult, bool)
 
 	// Subscriptions
 	GetSubscription(userID string) (*domain.Subscription, error)

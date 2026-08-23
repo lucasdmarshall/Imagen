@@ -8,6 +8,7 @@ import (
 	"github.com/show/api/internal/config"
 	"github.com/show/api/internal/devtools"
 	"github.com/show/api/internal/httpx"
+	"github.com/show/api/internal/middleware"
 	"github.com/show/api/internal/payments"
 	"github.com/show/api/internal/services"
 )
@@ -84,7 +85,22 @@ func (s *Server) handlePaymentProof(w http.ResponseWriter, r *http.Request) {
 	httpx.JSON(w, http.StatusAccepted, map[string]string{"status": "received"})
 }
 
-func (s *Server) withMiddleware(next http.Handler) http.Handler {
+// withMiddleware wraps the router in the security + idempotency stack. Order
+// (outermost first): recover → security headers → CORS → rate limit → body
+// limit → request log → idempotency → router.
+func (s *Server) withMiddleware(mux http.Handler) http.Handler {
+	return middleware.Chain(mux,
+		middleware.Recover(s.log),
+		middleware.SecurityHeaders(s.cfg.IsProd()),
+		middleware.CORS(s.cfg.AllowedOrigins),
+		middleware.RateLimit(s.cfg.RateLimitPerMin),
+		middleware.MaxBody(s.cfg.MaxBodyBytes),
+		s.requestLog,
+		middleware.Idempotency(s.svc.Store),
+	)
+}
+
+func (s *Server) requestLog(next http.Handler) http.Handler {
 	return http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
 		start := time.Now()
 		next.ServeHTTP(w, r)

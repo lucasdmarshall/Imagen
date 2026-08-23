@@ -161,6 +161,26 @@ Run it with:
 cd backend/api && go run ./cmd/devcli
 ```
 
+### Security & idempotency
+
+Every request passes through a hardened middleware stack (outermost first):
+panic-recovery → security headers → strict CORS allow-list → per-IP rate limit
+→ request body size cap → request log → **idempotency**.
+
+- **Idempotency (required on all mutations):** every `POST/PATCH/PUT/DELETE`
+  must carry an `Idempotency-Key` header (400 if missing). The response is
+  cached and **replayed** for repeated keys (`Idempotency-Replayed: true`), so a
+  retry never double-charges credits or double-creates. Keys are scoped by
+  caller (token/IP) + method + path; concurrent same-key requests are
+  serialized. Both clients (Flutter `ApiClient`, dev CLI) send keys automatically.
+- **Auth:** bcrypt password hashing; opaque 32-byte bearer tokens with a 30-day
+  expiry; generic auth errors; admin-role gate on admin routes.
+- **Headers:** `X-Content-Type-Options`, `X-Frame-Options: DENY`,
+  `Referrer-Policy: no-referrer`, `Content-Security-Policy`, `Cache-Control:
+  no-store`, and HSTS in production.
+- **Abuse limits:** per-IP rate limit (socket peer only — never a spoofable
+  `X-Forwarded-For`), request body cap, and server read/write/idle timeouts.
+
 ### Why two backend services
 - Go handles high-throughput, strongly-typed CRUD and business logic.
 - Python handles AI/model orchestration where the ecosystem (OpenRouter SDKs,

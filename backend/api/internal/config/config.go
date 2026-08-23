@@ -3,6 +3,7 @@ package config
 import (
 	"os"
 	"strconv"
+	"strings"
 )
 
 // Config holds runtime configuration, sourced entirely from the environment.
@@ -16,7 +17,15 @@ type Config struct {
 	// DevTools mounts the DISPOSABLE /api/dev/* routes. Must be false in prod.
 	// Delete the internal/devtools package and this flag after development.
 	DevTools bool
+
+	// Security
+	AllowedOrigins  []string // CORS allow-list.
+	RateLimitPerMin int      // Per-IP requests per minute.
+	MaxBodyBytes    int64    // Max request body size.
 }
+
+// IsProd reports whether the server runs in production mode.
+func (c Config) IsProd() bool { return c.Environment == "production" }
 
 // Load reads configuration from environment variables, applying sane defaults
 // for local development.
@@ -29,7 +38,36 @@ func Load() Config {
 		Environment:  env,
 		// Dev tools default on in development, always off outside it.
 		DevTools: env == "development" && getbool("DEV_TOOLS", true),
+
+		AllowedOrigins: getlist("ALLOWED_ORIGINS",
+			[]string{"http://localhost:8080", "http://localhost:3000"}),
+		RateLimitPerMin: getint("RATE_LIMIT_PER_MIN", 120),
+		MaxBodyBytes:    int64(getint("MAX_BODY_BYTES", 1<<20)), // 1 MiB
 	}
+}
+
+func getint(key string, fallback int) int {
+	if v := os.Getenv(key); v != "" {
+		if n, err := strconv.Atoi(v); err == nil {
+			return n
+		}
+	}
+	return fallback
+}
+
+func getlist(key string, fallback []string) []string {
+	v := os.Getenv(key)
+	if v == "" {
+		return fallback
+	}
+	parts := strings.Split(v, ",")
+	out := make([]string, 0, len(parts))
+	for _, p := range parts {
+		if p = strings.TrimSpace(p); p != "" {
+			out = append(out, p)
+		}
+	}
+	return out
 }
 
 func getenv(key, fallback string) string {

@@ -111,9 +111,12 @@ func (a *AuthService) Authenticate(token string) (*domain.User, error) {
 	return a.store.GetUserByID(uid)
 }
 
+// SessionTTL is how long an issued bearer token remains valid.
+const SessionTTL = 30 * 24 * time.Hour
+
 func (a *AuthService) issue(userID string) (string, error) {
 	token := newToken()
-	return token, a.store.CreateSession(token, userID)
+	return token, a.store.CreateSession(token, userID, time.Now().Add(SessionTTL))
 }
 
 // ---------------------------------------------------------------------------

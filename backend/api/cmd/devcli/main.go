@@ -11,6 +11,8 @@ package main
 import (
 	"bufio"
 	"bytes"
+	"crypto/rand"
+	"encoding/hex"
 	"encoding/json"
 	"fmt"
 	"io"
@@ -132,8 +134,21 @@ func get(path string) {
 
 func post(path string, body any) {
 	buf, _ := json.Marshal(body)
-	resp, err := http.Post(baseURL+path, "application/json", bytes.NewReader(buf))
+	req, err := http.NewRequest(http.MethodPost, baseURL+path, bytes.NewReader(buf))
+	if err != nil {
+		fmt.Println("ERROR:", err)
+		return
+	}
+	req.Header.Set("Content-Type", "application/json")
+	req.Header.Set("Idempotency-Key", newKey()) // fresh key per action
+	resp, err := http.DefaultClient.Do(req)
 	printResp(resp, err)
+}
+
+func newKey() string {
+	b := make([]byte, 16)
+	_, _ = rand.Read(b)
+	return hex.EncodeToString(b)
 }
 
 func printResp(resp *http.Response, err error) {
