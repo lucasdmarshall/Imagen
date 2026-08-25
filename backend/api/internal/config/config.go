@@ -42,7 +42,8 @@ func Load() Config {
 		AllowedOrigins: getlist("ALLOWED_ORIGINS",
 			[]string{"http://localhost:8080", "http://localhost:3000"}),
 		RateLimitPerMin: getint("RATE_LIMIT_PER_MIN", 120),
-		MaxBodyBytes:    int64(getint("MAX_BODY_BYTES", 1<<20)), // 1 MiB
+		// 8 MiB — large enough for reference-photo uploads.
+		MaxBodyBytes: int64(getint("MAX_BODY_BYTES", 8<<20)),
 	}
 }
 

@@ -76,7 +76,8 @@ func (a *AuthService) Register(email, password, displayName string) (*domain.Use
 		PasswordHash: string(hash),
 		Role:         domain.RoleUser,
 		CreatedAt:    time.Now().UTC(),
-		Profile:      domain.Profile{DisplayName: displayName, Locale: "en"},
+		// Burmese is the app default; English is an optional switch.
+		Profile:      domain.Profile{DisplayName: displayName, Locale: "my"},
 	}
 	if err := a.store.CreateUser(u); err != nil {
 		return nil, "", err

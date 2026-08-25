@@ -22,6 +22,15 @@ type IdempotentResult struct {
 	CreatedAt time.Time
 }
 
+// Upload is a stored reference photo (dev: in-memory; prod: object storage).
+type Upload struct {
+	ID          string
+	UserID      string
+	ContentType string
+	Data        []byte
+	CreatedAt   time.Time
+}
+
 // Store is the persistence boundary. Every service depends on this interface,
 // never on a concrete DB, so the backend runs in-memory today and on Postgres
 // later without touching business logic.
@@ -58,4 +67,8 @@ type Store interface {
 	CreateNotification(n *domain.Notification) error
 	ListNotifications(userID string) ([]*domain.Notification, error)
 	MarkNotificationRead(userID, id string) error
+
+	// Uploads (reference photos)
+	SaveUpload(u *Upload) error
+	GetUpload(id string) (*Upload, error)
 }

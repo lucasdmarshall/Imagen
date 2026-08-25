@@ -50,6 +50,12 @@ func (s *Server) Routes() http.Handler {
 	mux.HandleFunc("POST /api/v1/images/generate", httpx.Auth(auth, s.handleGenerateImage))
 	mux.HandleFunc("POST /api/v1/payments/proof", httpx.Auth(auth, s.handlePaymentProof))
 
+	// Guided Prompt Engine
+	mux.HandleFunc("GET /api/v1/prompts/flow", httpx.Auth(auth, s.handleFlow))
+	mux.HandleFunc("POST /api/v1/prompts/compile", httpx.Auth(auth, s.handleCompile))
+	mux.HandleFunc("POST /api/v1/uploads", httpx.Auth(auth, s.handleUpload))
+	mux.HandleFunc("GET /api/v1/uploads/{id}", httpx.Auth(auth, s.handleGetUpload))
+
 	// --- Admin ---
 	mux.HandleFunc("GET /api/v1/admin/users", httpx.AdminOnly(auth, s.handleAdminListUsers))
 	mux.HandleFunc("GET /api/v1/admin/users/{id}", httpx.AdminOnly(auth, s.handleAdminUserDetail))

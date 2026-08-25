@@ -23,6 +23,7 @@ type Memory struct {
 	credits       map[string][]*domain.CreditTransaction // by userID (ordered)
 	notifications map[string][]*domain.Notification      // by userID
 	idem          map[string]IdempotentResult            // idempotency key -> result
+	uploads       map[string]*Upload                     // upload id -> upload
 }
 
 func NewMemory() *Memory {
@@ -34,7 +35,27 @@ func NewMemory() *Memory {
 		credits:       map[string][]*domain.CreditTransaction{},
 		notifications: map[string][]*domain.Notification{},
 		idem:          map[string]IdempotentResult{},
+		uploads:       map[string]*Upload{},
 	}
+}
+
+func (m *Memory) SaveUpload(u *Upload) error {
+	m.mu.Lock()
+	defer m.mu.Unlock()
+	cp := *u
+	m.uploads[u.ID] = &cp
+	return nil
+}
+
+func (m *Memory) GetUpload(id string) (*Upload, error) {
+	m.mu.RLock()
+	defer m.mu.RUnlock()
+	u, ok := m.uploads[id]
+	if !ok {
+		return nil, ErrNotFound
+	}
+	cp := *u
+	return &cp, nil
 }
 
 // --- Users ---

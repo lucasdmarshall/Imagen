@@ -1,16 +1,19 @@
 # SHOW — Project Overview
 
-> Perimeter-driven image prompter with pixel-perfect customization.
-> Last updated: 2026-08-23
+> Guided, pixel-level image prompt-crafting engine.
+> Last updated: 2026-08-24
 
 ---
 
 ## 1. Product summary
 
 **SHOW** is a mobile-first (Android) application for generating AI image prompts
-and AI images with **perimeter-driven, pixel-perfect customization** — the user
-defines regions/perimeters on a canvas and controls the prompt and generation
-behavior per region, rather than relying on a single global prompt.
+and AI images with **pixel-level customization** via a **Guided Prompt Engine** —
+a step-by-step, branching questionnaire that asks the right follow-up for every
+answer (person vs object vs scene, reference photo or not, expression, setting,
+lighting, camera, style, …) and compiles a precise prompt, instead of relying on
+a single global prompt. (The earlier spatial "perimeter/region canvas" idea was
+replaced by this guided engine — far more approachable for the 40+ audience.)
 
 The product ships as **two applications**:
 
@@ -23,13 +26,20 @@ Both apps share one design system and talk to the same backend.
 
 ### Two modes (Client App)
 
-1. **Prompt Generator** — build/refine perimeter-aware prompts. Text models:
-   `google/gemini-3.7-flash` (default), `openai/gpt-5.6-luna`, `openai/gpt-5-mini`.
-2. **Image Generator** — render images from prompts. User picks one of two models:
+1. **Prompt Generator** — the **Guided Prompt Engine** (branching questionnaire).
+   At the end it shows the compiled prompt to **copy**, plus a **"generate this in
+   the app?"** call-to-action that hands the prompt to the Image Generator.
+   Optional AI polish uses text models `google/gemini-3.7-flash` (default),
+   `openai/gpt-5.6-luna`, `openai/gpt-5-mini`.
+2. **Image Generator** — render images from a prompt. User picks a model:
    - **Nano Banana Pro** — `google/gemini-3.1-flash-lite-image`
    - **GPT Image 2** — `openai/gpt-image-2`
 
 All AI calls are routed through **OpenRouter.ai**.
+
+> **Language:** Burmese (`my`) is the app default; English (`en`) is an optional
+> switch. UI labels are bilingual; compiled prompts are English (image models
+> expect English).
 
 ---
 
@@ -138,7 +148,8 @@ Public: `POST /auth/register`, `POST /auth/login`, `GET /store/items`,
 Authenticated (bearer token): `POST /auth/logout`, `GET|PATCH /profile`,
 `GET /credits/balance`, `GET /credits/history`, `GET /notifications`,
 `POST /notifications/{id}/read`, `GET /subscriptions/me`,
-`POST /prompts/generate`, `POST /images/generate`, `POST /payments/proof`.
+`POST /prompts/generate`, `POST /images/generate`, `POST /payments/proof`,
+`GET /prompts/flow`, `POST /prompts/compile`, `POST /uploads`, `GET /uploads/{id}`.
 
 Admin (admin role): `GET /admin/users`, `GET /admin/users/{id}`,
 `POST /admin/users/{id}/role|credits|plan`.
@@ -160,6 +171,29 @@ Run it with:
 ```bash
 cd backend/api && go run ./cmd/devcli
 ```
+
+### Guided Prompt Engine
+
+A **data-driven branching questionnaire** (`internal/promptflow`). A `Flow` is a
+graph of `Node`s; the client walks it one question at a time, following each
+answer's `Next` (or the node's default) and skipping nodes whose `Condition`
+fails. Node types: `single`, `multi`, `text`, `image` (reference photo),
+`slider`. Labels are bilingual (Burmese default); prompt fragments are English.
+
+- `GET /prompts/flow` — serves the current flow (`DefaultFlow()` seed; later
+  Admin-editable without an app release).
+- `POST /prompts/compile` — assembles walked answers into one English prompt,
+  **deterministically and free** (no AI, no credits), emitting each node's
+  fragment in a fixed layer order (subject → attributes → setting → light →
+  camera → style → technical). Navigation-only gates (e.g. yes/no "reference
+  photo?") contribute nothing. Any choice node also accepts a custom free-text
+  "Other".
+- `POST /uploads` + `GET /uploads/{id}` — reference-photo storage (dev:
+  in-memory; prod: object storage). The upload id becomes the `image` node's
+  answer and is passed to the multimodal image model.
+
+Flow: **Prompt Generator (guided) → compiled prompt (copy) → "generate in app?"
+→ Image Generator (pick model) → render**.
 
 ### Security & idempotency
 
