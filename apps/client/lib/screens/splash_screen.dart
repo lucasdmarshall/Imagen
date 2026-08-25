@@ -1,6 +1,7 @@
 import 'package:flutter/material.dart';
 import 'package:show_ui/show_ui.dart';
 
+import '../i18n.dart';
 import '../state/session.dart';
 import 'app_shell.dart';
 import 'auth_screen.dart';
@@ -39,7 +40,7 @@ class _SplashScreenState extends State<SplashScreen> {
           children: [
             Text('SHOW', style: ShowType.display),
             const SizedBox(height: ShowSpacing.sm),
-            Text('Perimeter-driven image prompter', style: ShowType.bodyMuted),
+            Text(T.of(context).tagline, style: ShowType.bodyMuted),
             const SizedBox(height: ShowSpacing.xxl),
           ],
         ),

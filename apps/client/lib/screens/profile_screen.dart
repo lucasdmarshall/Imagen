@@ -2,6 +2,7 @@ import 'package:flutter/material.dart';
 import 'package:heroicons/heroicons.dart';
 import 'package:show_ui/show_ui.dart';
 
+import '../i18n.dart';
 import '../state/session.dart';
 import 'auth_screen.dart';
 
@@ -27,15 +28,16 @@ class _ProfileScreenState extends State<ProfileScreen> {
 
   Future<void> _editName() async {
     final session = SessionScope.of(context);
+    final t = T.of(context);
     final controller = TextEditingController(text: session.displayName);
     final name = await showDialog<String>(
       context: context,
       builder: (_) => AlertDialog(
-        title: Text('Display name', style: ShowType.h3),
-        content: ShowField(label: 'Name', controller: controller),
+        title: Text(t.displayName, style: ShowType.h3),
+        content: ShowField(label: t.name, controller: controller),
         actions: [
-          TextButton(onPressed: () => Navigator.pop(context), child: const Text('Cancel')),
-          TextButton(onPressed: () => Navigator.pop(context, controller.text), child: const Text('Save')),
+          TextButton(onPressed: () => Navigator.pop(context), child: Text(t.cancel)),
+          TextButton(onPressed: () => Navigator.pop(context, controller.text), child: Text(t.save)),
         ],
       ),
     );
@@ -62,14 +64,15 @@ class _ProfileScreenState extends State<ProfileScreen> {
   @override
   Widget build(BuildContext context) {
     final session = SessionScope.of(context);
+    final t = T.of(context);
     return ListenableBuilder(
       listenable: session,
       builder: (context, _) {
         final email = session.user?['email'] as String? ?? '';
-        final locale = session.user?['profile']?['locale'] as String? ?? 'en';
+        final locale = session.locale;
         final plan = _sub?['planId'] as String?;
         return ShowPage(
-          title: 'Profile',
+          title: t.profile,
           children: [
             const SizedBox(height: ShowSpacing.lg),
             Text(session.displayName, style: ShowType.h1),
@@ -77,25 +80,25 @@ class _ProfileScreenState extends State<ProfileScreen> {
             Text(email, style: ShowType.bodyMuted),
             if (plan != null) ...[
               const SizedBox(height: ShowSpacing.md),
-              Row(children: [ShowTag(_planLabel(plan), emphasis: true)]),
+              Row(children: [ShowTag(t.plan(plan), emphasis: true)]),
             ],
-            const ShowSectionHeader('Account'),
+            ShowSectionHeader(t.account),
             ShowRow(
               leading: const HeroIcon(HeroIcons.pencil, size: 22),
-              title: 'Edit name',
+              title: t.editName,
               trailing: const HeroIcon(HeroIcons.chevronRight, size: 20),
               onTap: _editName,
             ),
             const Divider(),
             ShowRow(
               leading: const HeroIcon(HeroIcons.language, size: 22),
-              title: 'Language',
+              title: t.language,
               trailing: _LocaleToggle(value: locale, onChanged: _setLocale),
             ),
-            const ShowSectionHeader('Session'),
+            ShowSectionHeader(t.sessionLabel),
             ShowRow(
               leading: const HeroIcon(HeroIcons.arrowLeftStartOnRectangle, size: 22, color: ShowColors.danger),
-              title: 'Sign out',
+              title: t.signOut,
               onTap: _logout,
             ),
           ],
@@ -103,13 +106,6 @@ class _ProfileScreenState extends State<ProfileScreen> {
       },
     );
   }
-
-  String _planLabel(String id) => switch (id) {
-        'free' => 'Free plan',
-        'pro_monthly' => 'Pro — Monthly',
-        'pro_yearly' => 'Pro — Yearly',
-        _ => id,
-      };
 }
 
 class _LocaleToggle extends StatelessWidget {

@@ -2,6 +2,7 @@ import 'package:flutter/material.dart';
 import 'package:heroicons/heroicons.dart';
 import 'package:show_ui/show_ui.dart';
 
+import '../i18n.dart';
 import '../state/session.dart';
 import 'app_shell.dart';
 
@@ -46,40 +47,39 @@ class _AuthScreenState extends State<AuthScreen> {
 
   @override
   Widget build(BuildContext context) {
+    final t = T.of(context);
     return ShowPage(
       title: 'SHOW',
       children: [
         const SizedBox(height: ShowSpacing.xl),
-        Text(_register ? 'Create your account' : 'Welcome back', style: ShowType.h1),
+        Text(_register ? t.createAccount : t.welcomeBack, style: ShowType.h1),
         const SizedBox(height: ShowSpacing.xl),
         if (_register) ...[
-          ShowField(label: 'Name', controller: _name, hint: 'Your name'),
+          ShowField(label: t.name, controller: _name, hint: t.nameHint),
           const SizedBox(height: ShowSpacing.lg),
         ],
         ShowField(
-          label: 'Email',
+          label: t.email,
           controller: _email,
           hint: 'you@example.com',
           keyboardType: TextInputType.emailAddress,
         ),
         const SizedBox(height: ShowSpacing.lg),
-        ShowField(label: 'Password', controller: _password, hint: '••••••', obscure: true),
+        ShowField(label: t.password, controller: _password, hint: '••••••', obscure: true),
         const SizedBox(height: ShowSpacing.xl),
         if (_error != null) ...[
           Text(_error!, style: ShowType.body.copyWith(color: ShowColors.danger)),
           const SizedBox(height: ShowSpacing.md),
         ],
         ShowButton(
-          _busy ? 'Please wait…' : (_register ? 'Create account' : 'Sign in'),
+          _busy ? t.pleaseWait : (_register ? t.createAccount : t.signIn),
           leading: const HeroIcon(HeroIcons.arrowRightEndOnRectangle, size: 20, color: ShowColors.cream),
           onPressed: _busy ? null : _submit,
         ),
         const SizedBox(height: ShowSpacing.md),
         TextButton(
           onPressed: _busy ? null : () => setState(() => _register = !_register),
-          child: Text(_register
-              ? 'Have an account? Sign in'
-              : 'New here? Create an account'),
+          child: Text(_register ? t.haveAccount : t.newHere),
         ),
       ],
     );

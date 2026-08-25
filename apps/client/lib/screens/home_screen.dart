@@ -2,6 +2,7 @@ import 'package:flutter/material.dart';
 import 'package:heroicons/heroicons.dart';
 import 'package:show_ui/show_ui.dart';
 
+import '../i18n.dart';
 import '../state/session.dart';
 import 'image_generator_screen.dart';
 import 'notifications_screen.dart';
@@ -13,6 +14,7 @@ class HomeScreen extends StatelessWidget {
   @override
   Widget build(BuildContext context) {
     final session = SessionScope.of(context);
+    final t = T.of(context);
     return ListenableBuilder(
       listenable: session,
       builder: (context, _) => ShowPage(
@@ -26,16 +28,16 @@ class HomeScreen extends StatelessWidget {
         ],
         children: [
           const SizedBox(height: ShowSpacing.md),
-          Text('Hello, ${session.displayName}', style: ShowType.h1),
+          Text(t.hello(session.displayName), style: ShowType.h1),
           const SizedBox(height: ShowSpacing.md),
           Row(children: [
-            ShowTag('${session.balance} credits', emphasis: true),
+            ShowTag(t.credits(session.balance), emphasis: true),
           ]),
-          const ShowSectionHeader('Modes'),
+          ShowSectionHeader(t.modes),
           ShowRow(
             leading: const HeroIcon(HeroIcons.pencilSquare, size: 26),
-            title: 'Prompt Generator',
-            subtitle: 'Build structured, perimeter-aware prompts.',
+            title: t.promptGen,
+            subtitle: t.promptGenSub,
             trailing: const HeroIcon(HeroIcons.chevronRight, size: 20),
             onTap: () => Navigator.of(context).push(
               MaterialPageRoute(builder: (_) => const PromptGeneratorScreen())),
@@ -43,8 +45,8 @@ class HomeScreen extends StatelessWidget {
           const Divider(),
           ShowRow(
             leading: const HeroIcon(HeroIcons.photo, size: 26),
-            title: 'Image Generator',
-            subtitle: 'Render with Nano Banana Pro or GPT Image 2.',
+            title: t.imageGen,
+            subtitle: t.imageGenSub,
             trailing: const HeroIcon(HeroIcons.chevronRight, size: 20),
             onTap: () => Navigator.of(context).push(
               MaterialPageRoute(builder: (_) => const ImageGeneratorScreen())),

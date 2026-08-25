@@ -2,6 +2,7 @@ import 'package:flutter/material.dart';
 import 'package:heroicons/heroicons.dart';
 import 'package:show_ui/show_ui.dart';
 
+import '../i18n.dart';
 import '../state/session.dart';
 
 class NotificationsScreen extends StatefulWidget {
@@ -22,8 +23,9 @@ class _NotificationsScreenState extends State<NotificationsScreen> {
 
   @override
   Widget build(BuildContext context) {
+    final t = T.of(context);
     return ShowPage(
-      title: 'Notifications',
+      title: t.notifications,
       children: [
         FutureBuilder<List<dynamic>>(
           future: _future,
@@ -36,9 +38,9 @@ class _NotificationsScreenState extends State<NotificationsScreen> {
             }
             final items = (snap.data ?? const []).cast<Map<String, dynamic>>();
             if (items.isEmpty) {
-              return const ShowEmpty(
-                icon: HeroIcon(HeroIcons.bell, size: 36, color: ShowColors.inkFaint),
-                title: 'No notifications',
+              return ShowEmpty(
+                icon: const HeroIcon(HeroIcons.bell, size: 36, color: ShowColors.inkFaint),
+                title: t.noNotifications,
               );
             }
             return Column(children: [

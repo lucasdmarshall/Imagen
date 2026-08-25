@@ -2,6 +2,7 @@ import 'package:flutter/material.dart';
 import 'package:heroicons/heroicons.dart';
 import 'package:show_ui/show_ui.dart';
 
+import '../i18n.dart';
 import '../state/session.dart';
 import 'credits_screen.dart';
 import 'home_screen.dart';
@@ -20,11 +21,11 @@ class AppShell extends StatefulWidget {
 class _AppShellState extends State<AppShell> {
   int _index = 0;
 
-  static const _tabs = <(HeroIcons, String)>[
-    (HeroIcons.squares2x2, 'Home'),
-    (HeroIcons.shoppingBag, 'Store'),
-    (HeroIcons.sparkles, 'Credits'),
-    (HeroIcons.user, 'Profile'),
+  static const _icons = <HeroIcons>[
+    HeroIcons.squares2x2,
+    HeroIcons.shoppingBag,
+    HeroIcons.sparkles,
+    HeroIcons.user,
   ];
 
   @override
@@ -39,7 +40,9 @@ class _AppShellState extends State<AppShell> {
 
   @override
   Widget build(BuildContext context) {
-    final pages = const [HomeScreen(), StoreScreen(), CreditsScreen(), ProfileScreen()];
+    final t = T.of(context);
+    final labels = [t.navHome, t.navStore, t.navCredits, t.navProfile];
+    const pages = [HomeScreen(), StoreScreen(), CreditsScreen(), ProfileScreen()];
     return Scaffold(
       body: IndexedStack(index: _index, children: pages),
       bottomNavigationBar: DecoratedBox(
@@ -52,10 +55,10 @@ class _AppShellState extends State<AppShell> {
             height: 64,
             child: Row(
               children: [
-                for (var i = 0; i < _tabs.length; i++)
+                for (var i = 0; i < _icons.length; i++)
                   Expanded(child: _NavItem(
-                    icon: _tabs[i].$1,
-                    label: _tabs[i].$2,
+                    icon: _icons[i],
+                    label: labels[i],
                     selected: _index == i,
                     onTap: () => setState(() => _index = i),
                   )),

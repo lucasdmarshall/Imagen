@@ -3,6 +3,7 @@ import 'package:heroicons/heroicons.dart';
 import 'package:show_ui/show_ui.dart';
 
 import '../api/api_client.dart';
+import '../i18n.dart';
 import '../state/session.dart';
 
 class StoreScreen extends StatefulWidget {
@@ -22,14 +23,15 @@ class _StoreScreenState extends State<StoreScreen> {
     _items = _api.storeItems();
   }
 
-  String _price(int mmk) => mmk == 0 ? 'Free' : '${_fmt(mmk)} MMK';
+  String _price(int mmk) => mmk == 0 ? T.of(context).free : '${_fmt(mmk)} MMK';
   String _fmt(int n) => n.toString().replaceAllMapped(
       RegExp(r'(\d)(?=(\d{3})+$)'), (m) => '${m[1]},');
 
   @override
   Widget build(BuildContext context) {
+    final t = T.of(context);
     return ShowPage(
-      title: 'Store',
+      title: t.store,
       children: [
         FutureBuilder<List<dynamic>>(
           future: _items,
@@ -43,7 +45,7 @@ class _StoreScreenState extends State<StoreScreen> {
             if (snap.hasError) {
               return ShowEmpty(
                 icon: const HeroIcon(HeroIcons.shoppingBag, size: 36, color: ShowColors.inkFaint),
-                title: 'Store unavailable',
+                title: t.storeUnavailable,
                 subtitle: '${snap.error}',
               );
             }
@@ -51,10 +53,10 @@ class _StoreScreenState extends State<StoreScreen> {
             final subs = items.where((e) => e['kind'] == 'subscription').toList();
             final packs = items.where((e) => e['kind'] == 'credit_pack').toList();
             return Column(children: [
-              const ShowSectionHeader('Subscriptions'),
-              _list(subs, subtitleFor: (e) => 'Renews automatically'),
-              const ShowSectionHeader('Add-on credits'),
-              _list(packs, subtitleFor: (e) => '${e['credits']} credits'),
+              ShowSectionHeader(t.subscriptions),
+              _list(subs, subtitleFor: (e) => t.renewsAuto),
+              ShowSectionHeader(t.addonCredits),
+              _list(packs, subtitleFor: (e) => t.creditsAmount(e['credits'] as int)),
             ]);
           },
         ),
@@ -101,6 +103,7 @@ class _PaymentSheet extends StatelessWidget {
 
   @override
   Widget build(BuildContext context) {
+    final t = T.of(context);
     return Padding(
       padding: const EdgeInsets.fromLTRB(
           ShowSpacing.pageInset, ShowSpacing.lg, ShowSpacing.pageInset, ShowSpacing.xl),
@@ -111,13 +114,13 @@ class _PaymentSheet extends StatelessWidget {
           children: [
             Text(item['name'] as String, style: ShowType.h2),
             const SizedBox(height: ShowSpacing.xs),
-            Text('Pay $price via a mobile wallet below.', style: ShowType.bodyMuted),
+            Text(t.payVia(price), style: ShowType.bodyMuted),
             for (final m in methods) ...[
               const ShowSectionHeader(''),
               Text(m['name'] as String, style: ShowType.h3),
               const SizedBox(height: ShowSpacing.sm),
-              _line('Receiver', m['receiverName'] as String? ?? ''),
-              _line('Number', m['receiverPhone'] as String? ?? ''),
+              _line(t.receiver, m['receiverName'] as String? ?? ''),
+              _line(t.number, m['receiverPhone'] as String? ?? ''),
               const SizedBox(height: ShowSpacing.md),
               // QR placeholder — real image is served by the API before launch.
               Center(
@@ -128,10 +131,10 @@ class _PaymentSheet extends StatelessWidget {
               ),
             ],
             const SizedBox(height: ShowSpacing.xl),
-            ShowButton('I have paid — submit proof', onPressed: () {
+            ShowButton(t.iPaid, onPressed: () {
               Navigator.of(context).pop();
-              ScaffoldMessenger.of(context).showSnackBar(const SnackBar(
-                content: Text('Proof submitted for verification.'),
+              ScaffoldMessenger.of(context).showSnackBar(SnackBar(
+                content: Text(t.proofSubmitted),
               ));
             }),
           ],

@@ -2,6 +2,7 @@ import 'package:flutter/material.dart';
 import 'package:heroicons/heroicons.dart';
 import 'package:show_ui/show_ui.dart';
 
+import '../i18n.dart';
 import '../state/session.dart';
 
 class CreditsScreen extends StatefulWidget {
@@ -22,26 +23,19 @@ class _CreditsScreenState extends State<CreditsScreen> {
     session.refreshBalance();
   }
 
-  static const _reasonLabels = {
-    'grant': 'Plan grant',
-    'purchase': 'Credit pack',
-    'consume': 'Used',
-    'refund': 'Refund',
-    'admin_adjust': 'Adjustment',
-  };
-
   @override
   Widget build(BuildContext context) {
     final session = SessionScope.of(context);
+    final t = T.of(context);
     return ListenableBuilder(
       listenable: session,
       builder: (context, _) => ShowPage(
-        title: 'Credits',
+        title: t.creditsTitle,
         children: [
           const SizedBox(height: ShowSpacing.lg),
           Text('${session.balance}', style: ShowType.display),
-          Text('credits available', style: ShowType.bodyMuted),
-          const ShowSectionHeader('History'),
+          Text(t.creditsAvailable, style: ShowType.bodyMuted),
+          ShowSectionHeader(t.history),
           FutureBuilder<List<dynamic>>(
             future: _history,
             builder: (context, snap) {
@@ -53,10 +47,10 @@ class _CreditsScreenState extends State<CreditsScreen> {
               }
               final txs = snap.data ?? const [];
               if (txs.isEmpty) {
-                return const ShowEmpty(
-                  icon: HeroIcon(HeroIcons.sparkles, size: 36, color: ShowColors.inkFaint),
-                  title: 'No activity yet',
-                  subtitle: 'Credit grants and usage will show here.',
+                return ShowEmpty(
+                  icon: const HeroIcon(HeroIcons.sparkles, size: 36, color: ShowColors.inkFaint),
+                  title: t.noActivity,
+                  subtitle: t.noActivitySub,
                 );
               }
               return Column(children: [
@@ -76,7 +70,7 @@ class _CreditsScreenState extends State<CreditsScreen> {
     final amount = tx['amount'] as int;
     final positive = amount >= 0;
     return ShowRow(
-      title: _reasonLabels[tx['reason']] ?? '${tx['reason']}',
+      title: T.of(context).reason('${tx['reason']}'),
       subtitle: (tx['note'] as String?)?.isNotEmpty == true ? tx['note'] : null,
       trailing: Text(
         '${positive ? '+' : ''}$amount',
