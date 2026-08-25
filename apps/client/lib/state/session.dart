@@ -13,6 +13,12 @@ class Session extends ChangeNotifier {
   int balance = 0;
 
   bool get isAuthenticated => api.token != null;
+
+  /// Current UI locale. Burmese is the app default; English is optional.
+  String get locale {
+    final l = user?['profile']?['locale'] as String?;
+    return (l == 'en') ? 'en' : 'my';
+  }
   String get displayName =>
       (user?['profile']?['displayName'] as String?)?.trim().isNotEmpty == true
           ? user!['profile']['displayName']

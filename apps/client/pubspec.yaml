@@ -41,6 +41,12 @@ dependencies:
   # Hero Icons — app icon set.
   heroicons: ^0.11.0
 
+  # Reference-photo picker (gallery / camera; works on Flutter Web too).
+  image_picker: ^1.1.2
+
+  # MediaType for multipart uploads (also a transitive http dep).
+  http_parser: ^4.0.2
+
   # The following adds the Cupertino Icons font to your application.
   # Use with the CupertinoIcons class for iOS style icons.
   cupertino_icons: ^1.0.8

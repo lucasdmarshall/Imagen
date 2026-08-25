@@ -1,7 +1,9 @@
 import 'dart:convert';
 import 'dart:math';
+import 'dart:typed_data';
 
 import 'package:http/http.dart' as http;
+import 'package:http_parser/http_parser.dart' show MediaType;
 
 /// Thrown for non-2xx API responses.
 class ApiException implements Exception {
@@ -99,6 +101,32 @@ class ApiClient {
       ((await _send('GET', '/api/v1/notifications')) as Map)['notifications'] as List;
 
   Future<void> markRead(String id) => _send('POST', '/api/v1/notifications/$id/read');
+
+  // --- Guided Prompt Engine ---
+  Future<Map<String, dynamic>> promptFlow() async =>
+      (await _send('GET', '/api/v1/prompts/flow')) as Map<String, dynamic>;
+
+  Future<String> compilePrompt(Map<String, String> answers) async =>
+      ((await _send('POST', '/api/v1/prompts/compile', {'answers': answers})) as Map)['prompt']
+          as String;
+
+  /// Uploads a reference photo, returning its {id, url}.
+  Future<Map<String, dynamic>> uploadImage(
+      Uint8List bytes, String filename, String contentType) async {
+    final req = http.MultipartRequest('POST', Uri.parse('$baseUrl/api/v1/uploads'))
+      ..headers['Idempotency-Key'] = newIdempotencyKey();
+    if (token != null) req.headers['Authorization'] = 'Bearer $token';
+    req.files.add(http.MultipartFile.fromBytes('file', bytes,
+        filename: filename, contentType: MediaType.parse(contentType)));
+    final resp = await http.Response.fromStream(await req.send());
+    final decoded = resp.body.isEmpty ? null : jsonDecode(resp.body);
+    if (resp.statusCode >= 400) {
+      final m = decoded is Map ? decoded : const {};
+      throw ApiException(resp.statusCode, '${m['error'] ?? 'error'}',
+          '${m['detail'] ?? 'Upload failed'}');
+    }
+    return decoded as Map<String, dynamic>;
+  }
 
   // --- Generation ---
   Future<dynamic> generatePrompt(Map<String, dynamic> body) =>

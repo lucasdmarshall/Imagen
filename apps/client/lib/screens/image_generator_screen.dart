@@ -6,14 +6,24 @@ import '../state/session.dart';
 
 /// Image Generator — render a prompt with one of the two image models.
 class ImageGeneratorScreen extends StatefulWidget {
-  const ImageGeneratorScreen({super.key});
+  const ImageGeneratorScreen({
+    super.key,
+    this.initialPrompt,
+    this.referenceIds = const [],
+  });
+
+  /// Prompt prefilled from the Guided Prompt Engine (optional).
+  final String? initialPrompt;
+
+  /// Reference-photo upload ids to pass to the multimodal image model.
+  final List<String> referenceIds;
 
   @override
   State<ImageGeneratorScreen> createState() => _ImageGeneratorScreenState();
 }
 
 class _ImageGeneratorScreenState extends State<ImageGeneratorScreen> {
-  final _prompt = TextEditingController();
+  late final _prompt = TextEditingController(text: widget.initialPrompt ?? '');
   String _model = 'nano_banana_pro';
   bool _busy = false;
   String? _status;
@@ -30,7 +40,11 @@ class _ImageGeneratorScreenState extends State<ImageGeneratorScreen> {
     });
     final session = SessionScope.of(context);
     try {
-      await session.api.generateImage({'prompt': _prompt.text, 'model': _model});
+      await session.api.generateImage({
+        'prompt': _prompt.text,
+        'model': _model,
+        if (widget.referenceIds.isNotEmpty) 'reference_ids': widget.referenceIds,
+      });
       setState(() => _status = 'Requested. Rendering will appear in your library.');
     } catch (e) {
       setState(() => _status = 'Error: $e');
