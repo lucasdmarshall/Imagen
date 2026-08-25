@@ -174,11 +174,23 @@ cd backend/api && go run ./cmd/devcli
 
 ### Guided Prompt Engine
 
-A **data-driven branching questionnaire** (`internal/promptflow`). A `Flow` is a
-graph of `Node`s; the client walks it one question at a time, following each
-answer's `Next` (or the node's default) and skipping nodes whose `Condition`
-fails. Node types: `single`, `multi`, `text`, `image` (reference photo),
-`slider`. Labels are bilingual (Burmese default); prompt fragments are English.
+A **data-driven, condition-driven questionnaire** (`internal/promptflow`). A
+`Flow` is an ordered list of `Node`s; the client shows nodes in `Order`,
+skipping any whose `Condition` fails and any `Advanced` node in **Quick** mode.
+Node types: `single`, `multi`, `text`, `image` (reference photo), `slider`.
+Labels are bilingual (Burmese default); prompt fragments are English.
+
+- **Composition (multi-element):** the first question is a multi-select of what's
+  in the image — **person / object / scene** — and each element's questions
+  appear only if selected (`Condition: elements~=person`, etc.). So "a woman
+  holding a teapot in a village" composes person + object + scene in one image.
+  Condition ops: `=`, `!=`, `~=` (contains), `!~=` (not contains).
+- **Depth modes:** **Quick** (essentials only) vs **Detailed** (all `Advanced`
+  nodes: hair, pose, camera angle/lens/DoF, color palette, composition, mood,
+  in-image text, …) for full pixel-level control.
+- **AI polish** and **live preview** are client-orchestrated: preview re-calls
+  `/prompts/compile` (free); polish runs the draft through `/prompts/generate`
+  (optional, 1 credit).
 
 - `GET /prompts/flow` — serves the current flow (`DefaultFlow()` seed; later
   Admin-editable without an app release).
