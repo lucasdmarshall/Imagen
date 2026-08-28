@@ -34,7 +34,9 @@ services:
     build: ./backend/ai
     container_name: show_ai
     restart: unless-stopped
-    env_file: .env
+    env_file:
+      - path: .env
+        required: false
     environment:
       APP_ENV: ${APP_ENV:-production}
     expose:
@@ -50,7 +52,9 @@ services:
     build: ./backend/api
     container_name: show_api
     restart: unless-stopped
-    env_file: .env
+    env_file:
+      - path: .env
+        required: false
     environment:
       APP_ENV: ${APP_ENV:-production}
       PORT: "8080"
