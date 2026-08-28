@@ -18,6 +18,12 @@ type Config struct {
 	// Delete the internal/devtools package and this flag after development.
 	DevTools bool
 
+	// Optional admin bootstrap: if both are set, an admin account is created
+	// (or promoted) at startup. Lets production seed its first admin without
+	// the dev tools. Never log the password.
+	AdminEmail    string
+	AdminPassword string
+
 	// Security
 	AllowedOrigins  []string // CORS allow-list.
 	RateLimitPerMin int      // Per-IP requests per minute.
@@ -38,6 +44,9 @@ func Load() Config {
 		Environment:  env,
 		// Dev tools default on in development, always off outside it.
 		DevTools: env == "development" && getbool("DEV_TOOLS", true),
+
+		AdminEmail:    getenv("ADMIN_EMAIL", ""),
+		AdminPassword: getenv("ADMIN_PASSWORD", ""),
 
 		AllowedOrigins: getlist("ALLOWED_ORIGINS",
 			[]string{"http://localhost:8080", "http://localhost:3000"}),

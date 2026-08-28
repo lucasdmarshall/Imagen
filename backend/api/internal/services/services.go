@@ -89,6 +89,35 @@ func (a *AuthService) Register(email, password, displayName string) (*domain.Use
 	return u, token, err
 }
 
+// EnsureAdmin creates the given account if missing, then guarantees it is an
+// approved admin. Used to bootstrap the first admin in production (where the
+// dev tools are disabled). Idempotent: safe to call on every startup.
+func (a *AuthService) EnsureAdmin(email, password string) error {
+	email = strings.ToLower(strings.TrimSpace(email))
+	if email == "" {
+		return errors.New("admin email required")
+	}
+	u, err := a.store.GetUserByEmail(email)
+	if errors.Is(err, store.ErrNotFound) {
+		if len(password) < 6 {
+			return errors.New("admin password must be >= 6 chars to create the account")
+		}
+		if _, _, err := a.Register(email, password, "Admin"); err != nil {
+			return err
+		}
+		u, err = a.store.GetUserByEmail(email)
+	}
+	if err != nil {
+		return err
+	}
+	if u.Role == domain.RoleAdmin && u.Approved {
+		return nil
+	}
+	u.Role = domain.RoleAdmin
+	u.Approved = true
+	return a.store.UpdateUser(u)
+}
+
 func (a *AuthService) Login(email, password string) (*domain.User, string, error) {
 	email = strings.ToLower(strings.TrimSpace(email))
 	u, err := a.store.GetUserByEmail(email)
