@@ -27,9 +27,16 @@ class _PromptReviewScreenState extends State<PromptReviewScreen> {
 
   WizardController get c => widget.controller;
 
+  bool _compiled = false;
+
   @override
-  void initState() {
-    super.initState();
+  void didChangeDependencies() {
+    super.didChangeDependencies();
+    // SessionScope (an InheritedWidget) is only safe to read here — not in
+    // initState(), where dependOnInheritedWidgetOfExactType throws. Reading it
+    // there made _compile() fail silently, leaving the prompt box empty.
+    if (_compiled) return;
+    _compiled = true;
     _compile();
   }
 
@@ -79,8 +86,8 @@ class _PromptReviewScreenState extends State<PromptReviewScreen> {
   }
 
   void _generate() {
-    Navigator.of(context).push(MaterialPageRoute(
-      builder: (_) => ImageGeneratorScreen(
+    Navigator.of(context).push(showFadeThroughRoute(
+      ImageGeneratorScreen(
         initialPrompt: _prompt,
         referenceIds: _referenceIds,
       ),
@@ -94,68 +101,80 @@ class _PromptReviewScreenState extends State<PromptReviewScreen> {
     return ShowPage(
       title: t.review,
       children: [
-        const SizedBox(height: ShowSpacing.md),
-        // --- Answer summary (edit any step) ---
-        for (final n in c.answeredVisible) ...[
-          ShowRow(
-            title: n.question.t(locale),
-            subtitle: _display(n, locale),
-            trailing: TextButton(
-              onPressed: () {
-                c.editNode(n.id);
-                Navigator.of(context).pushReplacement(
-                    MaterialPageRoute(builder: (_) => WizardScreen(controller: c)));
-              },
-              child: Text(t.editStep),
-            ),
-          ),
-          const Divider(),
-        ],
+        Column(
+          crossAxisAlignment: CrossAxisAlignment.stretch,
+          children: showStagger([
+            const SizedBox(height: ShowSpacing.lg),
+            // --- The payoff: compiled prompt, front and centre ---
+            Text(t.yourPrompt,
+                style: ShowType.display.copyWith(
+                    fontSize: 26, height: 1.15, fontWeight: FontWeight.w700)),
+            const SizedBox(height: ShowSpacing.lg),
+            if (_loading)
+              const Padding(
+                padding: EdgeInsets.all(ShowSpacing.xl),
+                child: Center(child: CircularProgressIndicator()),
+              )
+            else
+              Container(
+                width: double.infinity,
+                padding: const EdgeInsets.all(ShowSpacing.lg),
+                decoration: BoxDecoration(
+                  color: ShowColors.creamSunken,
+                  borderRadius: BorderRadius.circular(18),
+                ),
+                child: SelectableText(_prompt,
+                    style: ShowType.bodyLarge.copyWith(height: 1.55)),
+              ),
+            const SizedBox(height: ShowSpacing.md),
+            Row(children: [
+              Expanded(
+                child: OutlinedButton.icon(
+                  onPressed: _loading ? null : () => _copy(t),
+                  icon: const HeroIcon(HeroIcons.clipboard, size: 20),
+                  label: Text(t.copy),
+                ),
+              ),
+              const SizedBox(width: ShowSpacing.md),
+              Expanded(
+                child: OutlinedButton.icon(
+                  onPressed: _loading || _enhancing ? null : _enhance,
+                  icon: const HeroIcon(HeroIcons.sparkles, size: 20),
+                  label: Text(_enhancing ? '…' : t.enhance),
+                ),
+              ),
+            ]),
 
-        // --- Compiled prompt ---
-        ShowSectionHeader(t.yourPrompt),
-        if (_loading)
-          const Padding(
-            padding: EdgeInsets.all(ShowSpacing.lg),
-            child: Center(child: CircularProgressIndicator()),
-          )
-        else
-          Container(
-            width: double.infinity,
-            padding: const EdgeInsets.all(ShowSpacing.md),
-            decoration: BoxDecoration(
-              color: ShowColors.creamSunken,
-              borderRadius: BorderRadius.circular(12),
+            // --- Generate CTA ---
+            const SizedBox(height: ShowSpacing.xl),
+            Text(t.generateCta, style: ShowType.h3),
+            const SizedBox(height: ShowSpacing.md),
+            ShowButton(
+              t.generate,
+              leading:
+                  const HeroIcon(HeroIcons.photo, size: 20, color: ShowColors.cream),
+              onPressed: _loading ? null : _generate,
             ),
-            child: SelectableText(_prompt, style: ShowType.body),
-          ),
-        const SizedBox(height: ShowSpacing.md),
-        Row(children: [
-          Expanded(
-            child: OutlinedButton.icon(
-              onPressed: _loading ? null : () => _copy(t),
-              icon: const HeroIcon(HeroIcons.clipboard, size: 20),
-              label: Text(t.copy),
-            ),
-          ),
-          const SizedBox(width: ShowSpacing.md),
-          Expanded(
-            child: OutlinedButton.icon(
-              onPressed: _loading || _enhancing ? null : _enhance,
-              icon: const HeroIcon(HeroIcons.sparkles, size: 20),
-              label: Text(_enhancing ? '…' : t.enhance),
-            ),
-          ),
-        ]),
 
-        // --- Generate CTA ---
-        const SizedBox(height: ShowSpacing.xl),
-        Text(t.generateCta, style: ShowType.h3),
-        const SizedBox(height: ShowSpacing.md),
-        ShowButton(
-          t.generate,
-          leading: const HeroIcon(HeroIcons.photo, size: 20, color: ShowColors.cream),
-          onPressed: _loading ? null : _generate,
+            // --- Answer summary (edit any step) ---
+            const SizedBox(height: ShowSpacing.xxl),
+            ShowSectionHeader(t.review),
+            for (final n in c.answeredVisible) ...[
+              ShowRow(
+                title: n.question.t(locale),
+                subtitle: _display(n, locale),
+                trailing: TextButton(
+                  onPressed: () {
+                    c.editNode(n.id);
+                    Navigator.of(context).pushReplacement(
+                        showFadeThroughRoute(WizardScreen(controller: c)));
+                  },
+                  child: Text(t.editStep),
+                ),
+              ),
+              const Divider(),
+            ],
+          ], initialDelay: const Duration(milliseconds: 60)),
         ),
       ],
     );

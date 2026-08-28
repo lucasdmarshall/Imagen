@@ -1,6 +1,8 @@
 package server
 
 import (
+	"encoding/base64"
+	"fmt"
 	"net/http"
 
 	"github.com/show/api/internal/domain"
@@ -36,6 +38,22 @@ func (s *Server) handleLogin(w http.ResponseWriter, r *http.Request) {
 		return
 	}
 	u, token, err := s.svc.Auth.Login(in.Email, in.Password)
+	if err != nil {
+		httpx.Error(w, err)
+		return
+	}
+	httpx.JSON(w, http.StatusOK, map[string]any{"token": token, "user": u})
+}
+
+func (s *Server) handleGoogleAuth(w http.ResponseWriter, r *http.Request) {
+	var in struct {
+		IDToken string `json:"id_token"`
+	}
+	if err := httpx.Decode(r, &in); err != nil {
+		httpx.Error(w, err)
+		return
+	}
+	u, token, err := s.svc.Auth.LoginWithGoogle(in.IDToken)
 	if err != nil {
 		httpx.Error(w, err)
 		return
@@ -157,6 +175,34 @@ func (s *Server) handleGenerateImage(w http.ResponseWriter, r *http.Request) {
 	if err := httpx.Decode(r, &body); err != nil {
 		httpx.Error(w, err)
 		return
+	}
+	// Resolve uploaded reference photos into inline data URLs so the AI service
+	// can do multimodal image editing (Outfit Swap, Face Swap, …). The AI
+	// service consumes "images"; it ignores "reference_ids".
+	if raw, ok := body["reference_ids"]; ok {
+		if ids, ok := raw.([]any); ok {
+			var images []string
+			for _, idAny := range ids {
+				id, _ := idAny.(string)
+				if id == "" {
+					continue
+				}
+				up, err := s.svc.Store.GetUpload(id)
+				if err != nil {
+					continue
+				}
+				ct := up.ContentType
+				if ct == "" {
+					ct = "image/jpeg"
+				}
+				images = append(images, fmt.Sprintf("data:%s;base64,%s",
+					ct, base64.StdEncoding.EncodeToString(up.Data)))
+			}
+			if len(images) > 0 {
+				body["images"] = images
+			}
+		}
+		delete(body, "reference_ids")
 	}
 	out, err := s.svc.Generation.GenerateImage(r.Context(), u.ID, body)
 	if err != nil {

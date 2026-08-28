@@ -14,13 +14,17 @@ class StoreScreen extends StatefulWidget {
 }
 
 class _StoreScreenState extends State<StoreScreen> {
-  late final ApiClient _api = SessionScope.of(context).api;
-  late Future<List<dynamic>> _items;
+  ApiClient? _api;
+  Future<List<dynamic>>? _items;
 
   @override
-  void initState() {
-    super.initState();
-    _items = _api.storeItems();
+  void didChangeDependencies() {
+    super.didChangeDependencies();
+    // SessionScope is an inherited widget; read it here, not in initState()
+    // or a field initializer (both run before dependencies are available).
+    if (_api != null) return;
+    _api = SessionScope.of(context).api;
+    _items = _api!.storeItems();
   }
 
   String _price(int mmk) => mmk == 0 ? T.of(context).free : '${_fmt(mmk)} MMK';
@@ -52,34 +56,50 @@ class _StoreScreenState extends State<StoreScreen> {
             final items = (snap.data ?? const []).cast<Map<String, dynamic>>();
             final subs = items.where((e) => e['kind'] == 'subscription').toList();
             final packs = items.where((e) => e['kind'] == 'credit_pack').toList();
-            return Column(children: [
-              ShowSectionHeader(t.subscriptions),
-              _list(subs, subtitleFor: (e) => t.renewsAuto),
-              ShowSectionHeader(t.addonCredits),
-              _list(packs, subtitleFor: (e) => t.creditsAmount(e['credits'] as int)),
-            ]);
+            return Column(
+              crossAxisAlignment: CrossAxisAlignment.stretch,
+              children: showStagger([
+                const SizedBox(height: ShowSpacing.lg),
+                Text(t.storeHero,
+                    style: ShowType.display.copyWith(
+                        fontSize: 26, height: 1.15, fontWeight: FontWeight.w700)),
+                const SizedBox(height: ShowSpacing.sm),
+                Text(t.storeHeroSub,
+                    style: ShowType.bodyLarge.copyWith(color: ShowColors.inkMuted)),
+                ShowSectionHeader(t.subscriptions),
+                _list(subs, subtitleFor: (e) => t.renewsAuto, accent: true),
+                ShowSectionHeader(t.addonCredits),
+                _list(packs, subtitleFor: (e) => t.creditsAmount(e['credits'] as int)),
+              ], initialDelay: const Duration(milliseconds: 60)),
+            );
           },
         ),
       ],
     );
   }
 
-  Widget _list(List<Map<String, dynamic>> items, {required String Function(Map<String, dynamic>) subtitleFor}) {
+  Widget _list(
+    List<Map<String, dynamic>> items, {
+    required String Function(Map<String, dynamic>) subtitleFor,
+    bool accent = false,
+  }) {
     return Column(children: [
-      for (var i = 0; i < items.length; i++) ...[
-        ShowRow(
-          title: items[i]['name'] as String,
-          subtitle: subtitleFor(items[i]),
-          trailing: ShowTag(_price(items[i]['priceMmk'] as int)),
-          onTap: () => _openPayment(items[i]),
+      for (var i = 0; i < items.length; i++)
+        Padding(
+          padding: const EdgeInsets.only(bottom: ShowSpacing.md),
+          child: _PlanCard(
+            title: items[i]['name'] as String,
+            subtitle: subtitleFor(items[i]),
+            price: _price(items[i]['priceMmk'] as int),
+            accent: accent,
+            onTap: () => _openPayment(items[i]),
+          ),
         ),
-        if (i < items.length - 1) const Divider(),
-      ],
     ]);
   }
 
   Future<void> _openPayment(Map<String, dynamic> item) async {
-    final methods = await _api.paymentMethods();
+    final methods = await SessionScope.of(context).api.paymentMethods();
     if (!mounted) return;
     showModalBottomSheet(
       context: context,
@@ -88,6 +108,80 @@ class _StoreScreenState extends State<StoreScreen> {
         item: item,
         methods: methods.cast<Map<String, dynamic>>(),
         price: _price(item['priceMmk'] as int),
+      ),
+    );
+  }
+}
+
+/// A tactile plan / credit-pack card. Subscriptions render in the accent tone
+/// to stand out; credit packs use a soft field. Hover warms, press scales.
+class _PlanCard extends StatefulWidget {
+  const _PlanCard({
+    required this.title,
+    required this.subtitle,
+    required this.price,
+    required this.onTap,
+    this.accent = false,
+  });
+
+  final String title;
+  final String subtitle;
+  final String price;
+  final VoidCallback onTap;
+  final bool accent;
+
+  @override
+  State<_PlanCard> createState() => _PlanCardState();
+}
+
+class _PlanCardState extends State<_PlanCard> {
+  bool _hover = false;
+
+  @override
+  Widget build(BuildContext context) {
+    final onColor = widget.accent ? ShowColors.cream : ShowColors.ink;
+    final subColor = widget.accent
+        ? ShowColors.cream.withValues(alpha: 0.82)
+        : ShowColors.inkMuted;
+    final base = widget.accent ? ShowColors.accent : ShowColors.creamSunken;
+    final hovered =
+        widget.accent ? ShowColors.accentPressed : ShowColors.creamRaised;
+
+    return MouseRegion(
+      onEnter: (_) => setState(() => _hover = true),
+      onExit: (_) => setState(() => _hover = false),
+      cursor: SystemMouseCursors.click,
+      child: ShowPressable(
+        onTap: widget.onTap,
+        child: AnimatedContainer(
+          duration: ShowMotion.fast,
+          curve: ShowMotion.entrance,
+          padding: const EdgeInsets.all(ShowSpacing.lg),
+          decoration: BoxDecoration(
+            color: _hover ? hovered : base,
+            borderRadius: BorderRadius.circular(18),
+          ),
+          child: Row(
+            children: [
+              Expanded(
+                child: Column(
+                  crossAxisAlignment: CrossAxisAlignment.start,
+                  children: [
+                    Text(widget.title,
+                        style: ShowType.h3.copyWith(color: onColor)),
+                    const SizedBox(height: ShowSpacing.xs),
+                    Text(widget.subtitle,
+                        style: ShowType.bodyMuted.copyWith(color: subColor)),
+                  ],
+                ),
+              ),
+              const SizedBox(width: ShowSpacing.md),
+              Text(widget.price,
+                  style: ShowType.h3.copyWith(
+                      color: onColor, fontWeight: FontWeight.w700)),
+            ],
+          ),
+        ),
       ),
     );
   }

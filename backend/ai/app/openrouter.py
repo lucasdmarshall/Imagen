@@ -45,3 +45,26 @@ async def generate_image(model: str, prompt: str) -> dict:
     if resp.status_code >= 400:
         raise OpenRouterError(f"{resp.status_code}: {resp.text}")
     return resp.json()
+
+
+async def generate_image_edit(model: str, prompt: str, images: list[str]) -> dict:
+    """Multimodal image edit: input image(s) + prompt -> a new image.
+
+    Used by the effect pages (Outfit Swap, Face Swap, …). Gemini image models
+    take images as input and return an image, via chat/completions with the
+    image output modality. [images] are data URLs or https URLs.
+    """
+    url = f"{settings.openrouter_base_url}/chat/completions"
+    content: list[dict] = [{"type": "text", "text": prompt}]
+    for img in images:
+        content.append({"type": "image_url", "image_url": {"url": img}})
+    payload = {
+        "model": model,
+        "messages": [{"role": "user", "content": content}],
+        "modalities": ["image", "text"],
+    }
+    async with httpx.AsyncClient(timeout=180) as client:
+        resp = await client.post(url, headers=_headers(), json=payload)
+    if resp.status_code >= 400:
+        raise OpenRouterError(f"{resp.status_code}: {resp.text}")
+    return resp.json()

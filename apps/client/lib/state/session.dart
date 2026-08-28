@@ -14,6 +14,9 @@ class Session extends ChangeNotifier {
 
   bool get isAuthenticated => api.token != null;
 
+  /// Whether an admin has let this user past the Waiting Area gate.
+  bool get approved => user?['approved'] == true;
+
   /// Current UI locale. Burmese is the app default; English is optional.
   String get locale {
     final l = user?['profile']?['locale'] as String?;
@@ -32,6 +35,12 @@ class Session extends ChangeNotifier {
 
   Future<void> login(String email, String password) async {
     final res = await api.login(email, password);
+    _apply(res);
+    await refreshBalance();
+  }
+
+  Future<void> loginWithGoogle(String idToken) async {
+    final res = await api.googleLogin(idToken);
     _apply(res);
     await refreshBalance();
   }

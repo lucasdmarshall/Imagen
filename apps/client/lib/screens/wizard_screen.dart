@@ -89,8 +89,8 @@ class _WizardScreenState extends State<WizardScreen> {
         if (node == null) {
           WidgetsBinding.instance.addPostFrameCallback((_) {
             if (!mounted) return;
-            Navigator.of(context).pushReplacement(MaterialPageRoute(
-              builder: (_) => PromptReviewScreen(controller: c)));
+            Navigator.of(context).pushReplacement(
+                showFadeThroughRoute(PromptReviewScreen(controller: c)));
           });
           return const Scaffold(body: Center(child: CircularProgressIndicator()));
         }
@@ -102,12 +102,18 @@ class _WizardScreenState extends State<WizardScreen> {
           appBar: AppBar(
             title: Text(t.stepOf(c.position, c.totalVisible)),
             bottom: PreferredSize(
-              preferredSize: const Size.fromHeight(2),
-              child: LinearProgressIndicator(
-                value: c.progress,
-                minHeight: 2,
-                backgroundColor: ShowColors.creamSunken,
-                color: ShowColors.accent,
+              preferredSize: const Size.fromHeight(3),
+              // Progress fills smoothly as the answers advance.
+              child: TweenAnimationBuilder<double>(
+                tween: Tween(begin: 0, end: c.progress),
+                duration: ShowMotion.base,
+                curve: ShowMotion.entrance,
+                builder: (context, value, _) => LinearProgressIndicator(
+                  value: value,
+                  minHeight: 3,
+                  backgroundColor: ShowColors.creamSunken,
+                  color: ShowColors.accent,
+                ),
               ),
             ),
           ),
@@ -122,17 +128,24 @@ class _WizardScreenState extends State<WizardScreen> {
                       child: SingleChildScrollView(
                         padding: const EdgeInsets.symmetric(
                             horizontal: ShowSpacing.pageInset, vertical: ShowSpacing.lg),
+                        // Keyed by node id so the question/input re-stagger into
+                        // view on every step change.
                         child: Column(
+                          key: ValueKey(node.id),
                           crossAxisAlignment: CrossAxisAlignment.start,
-                          children: [
+                          children: showStagger([
                             Text(node.question.t(locale), style: ShowType.h2),
-                            if (node.help.t(locale).isNotEmpty) ...[
-                              const SizedBox(height: ShowSpacing.sm),
-                              Text(node.help.t(locale), style: ShowType.bodyMuted),
-                            ],
-                            const SizedBox(height: ShowSpacing.lg),
-                            _input(node, locale, t),
-                          ],
+                            if (node.help.t(locale).isNotEmpty)
+                              Padding(
+                                padding: const EdgeInsets.only(top: ShowSpacing.sm),
+                                child: Text(node.help.t(locale),
+                                    style: ShowType.bodyMuted),
+                              ),
+                            Padding(
+                              padding: const EdgeInsets.only(top: ShowSpacing.lg),
+                              child: _input(node, locale, t),
+                            ),
+                          ], step: const Duration(milliseconds: 60)),
                         ),
                       ),
                     ),
@@ -157,6 +170,7 @@ class _WizardScreenState extends State<WizardScreen> {
       case NodeType.image:
         return _imageInput(node, t);
       case NodeType.text:
+        return _textInput(node, locale, t);
       case NodeType.slider:
         return TextField(
           controller: _text,
@@ -167,6 +181,89 @@ class _WizardScreenState extends State<WizardScreen> {
           onChanged: (v) => c.setAnswer(node.id, v.trim()),
         );
     }
+  }
+
+  Widget _textInput(FlowNode node, String locale, T t) {
+    return Column(
+      crossAxisAlignment: CrossAxisAlignment.start,
+      children: [
+        TextField(
+          controller: _text,
+          maxLines: 3,
+          minLines: 1,
+          style: ShowType.body,
+          decoration: InputDecoration(hintText: t.typeHere),
+          onChanged: (v) => c.setAnswer(node.id, v.trim()),
+        ),
+        // Prefilled suggestion pills: tap one to fill the field; typing still works.
+        if (node.options.isNotEmpty) ...[
+          const SizedBox(height: ShowSpacing.md),
+          Wrap(
+            spacing: ShowSpacing.sm,
+            runSpacing: ShowSpacing.sm,
+            children: [
+              for (final o in node.options)
+                _suggestionPill(
+                  label: o.label.t(locale),
+                  selected: _text.text.trim() == o.value,
+                  onTap: () {
+                    setState(() {
+                      _text.text = o.value;
+                      _text.selection = TextSelection.collapsed(
+                          offset: _text.text.length);
+                    });
+                    c.setAnswer(node.id, o.value);
+                  },
+                ),
+            ],
+          ),
+        ],
+      ],
+    );
+  }
+
+  Widget _suggestionPill({
+    required String label,
+    required bool selected,
+    required VoidCallback onTap,
+  }) {
+    return ShowPressable(
+      onTap: onTap,
+      scale: 0.94,
+      child: AnimatedContainer(
+        duration: ShowMotion.fast,
+        curve: ShowMotion.entrance,
+        padding: const EdgeInsets.symmetric(
+            horizontal: ShowSpacing.md, vertical: ShowSpacing.sm),
+        decoration: BoxDecoration(
+          color: selected ? ShowColors.accent : ShowColors.creamSunken,
+          borderRadius: BorderRadius.circular(999),
+        ),
+        child: Row(
+          mainAxisSize: MainAxisSize.min,
+          children: [
+            // Check pops in when the pill is the active choice.
+            AnimatedSize(
+              duration: ShowMotion.fast,
+              curve: ShowMotion.entrance,
+              child: selected
+                  ? const Padding(
+                      padding: EdgeInsets.only(right: 6),
+                      child: HeroIcon(HeroIcons.check,
+                          size: 16, color: ShowColors.cream,
+                          style: HeroIconStyle.solid),
+                    )
+                  : const SizedBox.shrink(),
+            ),
+            Text(
+              label,
+              style: ShowType.body.copyWith(
+                  color: selected ? ShowColors.cream : ShowColors.ink),
+            ),
+          ],
+        ),
+      ),
+    );
   }
 
   Widget _singleInput(FlowNode node, String locale, T t) {
@@ -263,13 +360,19 @@ class _WizardScreenState extends State<WizardScreen> {
     return ShowRow(
       title: label,
       onTap: onTap,
-      trailing: HeroIcon(
-        checked
-            ? (box ? HeroIcons.checkCircle : HeroIcons.checkCircle)
-            : (box ? HeroIcons.stop : HeroIcons.stop),
-        style: checked ? HeroIconStyle.solid : HeroIconStyle.outline,
-        size: 26,
-        color: checked ? ShowColors.accent : ShowColors.inkFaint,
+      // The check gently pops and warms when toggled on.
+      trailing: AnimatedScale(
+        scale: checked ? 1.0 : 0.86,
+        duration: ShowMotion.fast,
+        curve: ShowMotion.emphasized,
+        child: HeroIcon(
+          checked
+              ? HeroIcons.checkCircle
+              : (box ? HeroIcons.stop : HeroIcons.stop),
+          style: checked ? HeroIconStyle.solid : HeroIconStyle.outline,
+          size: 26,
+          color: checked ? ShowColors.accent : ShowColors.inkFaint,
+        ),
       ),
     );
   }
@@ -312,6 +415,12 @@ class _WizardScreenState extends State<WizardScreen> {
           TextButton(onPressed: _goNext, child: Text(t.skip)),
         const SizedBox(width: ShowSpacing.sm),
         FilledButton(
+          // The theme makes FilledButtons full-width (minimumSize width =
+          // infinity). Inside this Row that forces an infinite width, so give
+          // the Next button an intrinsic width instead.
+          style: FilledButton.styleFrom(
+            minimumSize: const Size(0, ShowSizing.controlHeight),
+          ),
           onPressed: canNext ? _goNext : null,
           child: Text(t.next),
         ),

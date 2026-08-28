@@ -5,8 +5,10 @@ import '../i18n.dart';
 import '../state/session.dart';
 import 'app_shell.dart';
 import 'auth_screen.dart';
+import 'waiting_area_screen.dart';
 
-/// Minimal splash: wordmark on cream, Swiss alignment, no box/card/gradient.
+/// Minimal splash: the wordmark rises in, an accent rule draws beneath it, then
+/// the tagline fades up. Swiss alignment, no box/card/gradient — motion only.
 class SplashScreen extends StatefulWidget {
   const SplashScreen({super.key});
 
@@ -14,19 +16,40 @@ class SplashScreen extends StatefulWidget {
   State<SplashScreen> createState() => _SplashScreenState();
 }
 
-class _SplashScreenState extends State<SplashScreen> {
+class _SplashScreenState extends State<SplashScreen>
+    with SingleTickerProviderStateMixin {
+  late final AnimationController _c =
+      AnimationController(vsync: this, duration: const Duration(milliseconds: 1600))
+        ..forward();
+
+  late final Animation<double> _rise = CurvedAnimation(
+      parent: _c, curve: const Interval(0.0, 0.45, curve: Curves.easeOutCubic));
+  late final Animation<double> _line = CurvedAnimation(
+      parent: _c, curve: const Interval(0.35, 0.75, curve: Curves.easeOutCubic));
+  late final Animation<double> _tag = CurvedAnimation(
+      parent: _c, curve: const Interval(0.55, 1.0, curve: Curves.easeOutCubic));
+
   @override
   void initState() {
     super.initState();
-    Future.delayed(const Duration(milliseconds: 1300), _next);
+    Future.delayed(const Duration(milliseconds: 1900), _next);
   }
 
   void _next() {
     if (!mounted) return;
-    final authed = SessionScope.of(context).isAuthenticated;
-    Navigator.of(context).pushReplacement(MaterialPageRoute(
-      builder: (_) => authed ? const AppShell() : const AuthScreen(),
-    ));
+    final s = SessionScope.of(context);
+    final Widget home = !s.isAuthenticated
+        ? const AuthScreen()
+        : s.approved
+            ? const AppShell()
+            : const WaitingAreaScreen();
+    Navigator.of(context).pushReplacement(showFadeThroughRoute(home));
+  }
+
+  @override
+  void dispose() {
+    _c.dispose();
+    super.dispose();
   }
 
   @override
@@ -38,9 +61,44 @@ class _SplashScreenState extends State<SplashScreen> {
           crossAxisAlignment: CrossAxisAlignment.start,
           mainAxisAlignment: MainAxisAlignment.end,
           children: [
-            Text('SHOW', style: ShowType.display),
-            const SizedBox(height: ShowSpacing.sm),
-            Text(T.of(context).tagline, style: ShowType.bodyMuted),
+            AnimatedBuilder(
+              animation: _c,
+              builder: (context, _) => Column(
+                crossAxisAlignment: CrossAxisAlignment.start,
+                children: [
+                  Opacity(
+                    opacity: _rise.value,
+                    child: Transform.translate(
+                      offset: Offset(0, 24 * (1 - _rise.value)),
+                      child: Text('SHOW', style: ShowType.display),
+                    ),
+                  ),
+                  const SizedBox(height: ShowSpacing.sm),
+                  // Accent rule that draws in from the left.
+                  Align(
+                    alignment: Alignment.centerLeft,
+                    child: FractionallySizedBox(
+                      widthFactor: (_line.value * 0.42).clamp(0.0, 1.0),
+                      child: Container(
+                        height: 3,
+                        decoration: BoxDecoration(
+                          color: ShowColors.accent,
+                          borderRadius: BorderRadius.circular(2),
+                        ),
+                      ),
+                    ),
+                  ),
+                  const SizedBox(height: ShowSpacing.md),
+                  Opacity(
+                    opacity: _tag.value,
+                    child: Transform.translate(
+                      offset: Offset(0, 12 * (1 - _tag.value)),
+                      child: Text(T.of(context).tagline, style: ShowType.bodyMuted),
+                    ),
+                  ),
+                ],
+              ),
+            ),
             const SizedBox(height: ShowSpacing.xxl),
           ],
         ),

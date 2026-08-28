@@ -1,5 +1,6 @@
 import 'package:flutter/material.dart';
 
+import '../motion/show_motion.dart';
 import '../tokens/show_colors.dart';
 import '../tokens/show_spacing.dart';
 import '../tokens/show_typography.dart';
@@ -49,6 +50,18 @@ class ShowTheme {
       canvasColor: bg,
       dividerColor: hairline,
       textTheme: baseText.textTheme,
+
+      // Smooth fade-through navigation on every platform (incl. web).
+      pageTransitionsTheme: const PageTransitionsTheme(
+        builders: {
+          TargetPlatform.android: ShowPageTransitions(),
+          TargetPlatform.iOS: ShowPageTransitions(),
+          TargetPlatform.macOS: ShowPageTransitions(),
+          TargetPlatform.windows: ShowPageTransitions(),
+          TargetPlatform.linux: ShowPageTransitions(),
+          TargetPlatform.fuchsia: ShowPageTransitions(),
+        },
+      ),
 
       // Borderless app bar: flat, no shadow, no surface tint.
       appBarTheme: AppBarTheme(

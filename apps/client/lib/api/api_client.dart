@@ -67,6 +67,10 @@ class ApiClient {
       (await _send('POST', '/api/v1/auth/login',
           {'email': email, 'password': password})) as Map<String, dynamic>;
 
+  Future<Map<String, dynamic>> googleLogin(String idToken) async =>
+      (await _send('POST', '/api/v1/auth/google',
+          {'id_token': idToken})) as Map<String, dynamic>;
+
   Future<void> logout() => _send('POST', '/api/v1/auth/logout');
 
   // --- Profile ---

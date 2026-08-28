@@ -1,5 +1,11 @@
-# Local dev Postgres. Production DB is provided separately by the team.
-# Usage:  docker compose up -d
+# SHOW — full stack. Each service runs in its own container.
+#
+#   postgres  : database (persistent volume)
+#   ai        : Python FastAPI AI service (internal only)
+#   api       : Go API gateway (public on :8080)
+#
+# Deploy on the server:  docker compose up -d --build
+# Config comes from the repo-root .env on the server (never committed).
 services:
   postgres:
     image: postgres:16-alpine
@@ -13,11 +19,51 @@ services:
       - "5432:5432"
     volumes:
       - show_pgdata:/var/lib/postgresql/data
+      # Schema is applied automatically the first time the DB is initialised.
+      - ./backend/api/migrations:/docker-entrypoint-initdb.d:ro
     healthcheck:
       test: ["CMD-SHELL", "pg_isready -U ${POSTGRES_USER:-show}"]
       interval: 5s
       timeout: 5s
       retries: 5
+
+  ai:
+    build: ./backend/ai
+    container_name: show_ai
+    restart: unless-stopped
+    env_file: .env
+    environment:
+      APP_ENV: ${APP_ENV:-production}
+    expose:
+      - "8000"
+    healthcheck:
+      test: ["CMD", "python", "-c", "import urllib.request,sys; sys.exit(0 if urllib.request.urlopen('http://127.0.0.1:8000/health').status==200 else 1)"]
+      interval: 15s
+      timeout: 5s
+      retries: 5
+      start_period: 10s
+
+  api:
+    build: ./backend/api
+    container_name: show_api
+    restart: unless-stopped
+    env_file: .env
+    environment:
+      APP_ENV: ${APP_ENV:-production}
+      PORT: "8080"
+      # In-cluster service DNS: reach siblings by their compose service name.
+      # Built from POSTGRES_* so creds track the DB, but the host is always the
+      # `postgres` container (NOT the localhost value that .env carries for the
+      # host-run binary).
+      DATABASE_URL: postgres://${POSTGRES_USER:-show}:${POSTGRES_PASSWORD:-show_dev_password}@postgres:5432/${POSTGRES_DB:-show}?sslmode=disable
+      AI_SERVICE_URL: http://ai:8000
+    ports:
+      - "8080:8080"
+    depends_on:
+      postgres:
+        condition: service_healthy
+      ai:
+        condition: service_started
 
 volumes:
   show_pgdata:

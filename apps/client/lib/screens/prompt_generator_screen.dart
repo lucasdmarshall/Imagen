@@ -18,19 +18,21 @@ class PromptGeneratorScreen extends StatefulWidget {
 }
 
 class _PromptGeneratorScreenState extends State<PromptGeneratorScreen> {
-  late Future<PromptFlow> _flow;
+  Future<PromptFlow>? _flow;
 
   @override
-  void initState() {
-    super.initState();
-    _flow = SessionScope.of(context).api.promptFlow().then(PromptFlow.fromJson);
+  void didChangeDependencies() {
+    super.didChangeDependencies();
+    // Inherited widgets (SessionScope) are only safe to read here, not in
+    // initState(). Guard so the flow is fetched once.
+    _flow ??=
+        SessionScope.of(context).api.promptFlow().then(PromptFlow.fromJson);
   }
 
   void _start(PromptFlow flow, {required bool detailed}) {
     final controller = WizardController(flow, detailed: detailed);
-    Navigator.of(context).push(
-      MaterialPageRoute(builder: (_) => WizardScreen(controller: controller)),
-    );
+    Navigator.of(context)
+        .push(showFadeThroughRoute(WizardScreen(controller: controller)));
   }
 
   @override
@@ -44,7 +46,7 @@ class _PromptGeneratorScreenState extends State<PromptGeneratorScreen> {
           builder: (context, snap) {
             if (snap.connectionState != ConnectionState.done) {
               return const Padding(
-                padding: EdgeInsets.all(ShowSpacing.xl),
+                padding: EdgeInsets.all(ShowSpacing.xxl),
                 child: Center(child: CircularProgressIndicator()),
               );
             }
@@ -57,27 +59,113 @@ class _PromptGeneratorScreenState extends State<PromptGeneratorScreen> {
               );
             }
             final flow = snap.data!;
-            return Column(children: [
-              const SizedBox(height: ShowSpacing.md),
-              Text(t.chooseDepth, style: ShowType.h1),
-              const SizedBox(height: ShowSpacing.xl),
-              ShowRow(
-                leading: const HeroIcon(HeroIcons.bolt, size: 26),
-                title: t.quick,
-                trailing: const HeroIcon(HeroIcons.chevronRight, size: 20),
-                onTap: () => _start(flow, detailed: false),
-              ),
-              const Divider(),
-              ShowRow(
-                leading: const HeroIcon(HeroIcons.adjustmentsHorizontal, size: 26),
-                title: t.detailed,
-                trailing: const HeroIcon(HeroIcons.chevronRight, size: 20),
-                onTap: () => _start(flow, detailed: true),
-              ),
-            ]);
+            return Column(
+              crossAxisAlignment: CrossAxisAlignment.start,
+              children: showStagger([
+                const SizedBox(height: ShowSpacing.lg),
+                Text(t.chooseDepth,
+                    style: ShowType.display
+                        .copyWith(fontSize: 26, height: 1.15, fontWeight: FontWeight.w700)),
+                const SizedBox(height: ShowSpacing.sm),
+                Text(t.chooseDepthSub, style: ShowType.bodyLarge.copyWith(color: ShowColors.inkMuted)),
+                const SizedBox(height: ShowSpacing.xl),
+                _DepthCard(
+                  icon: HeroIcons.bolt,
+                  title: t.quick,
+                  subtitle: t.quickSub,
+                  onTap: () => _start(flow, detailed: false),
+                ),
+                const SizedBox(height: ShowSpacing.md),
+                _DepthCard(
+                  icon: HeroIcons.adjustmentsHorizontal,
+                  title: t.detailed,
+                  subtitle: t.detailedSub,
+                  accent: true,
+                  onTap: () => _start(flow, detailed: true),
+                ),
+              ], initialDelay: const Duration(milliseconds: 60)),
+            );
           },
         ),
       ],
+    );
+  }
+}
+
+/// A bold, tactile choice card for the Quick/Detailed decision. The recommended
+/// (Detailed) option is filled in the accent tone; the other is a soft field.
+class _DepthCard extends StatefulWidget {
+  const _DepthCard({
+    required this.icon,
+    required this.title,
+    required this.subtitle,
+    required this.onTap,
+    this.accent = false,
+  });
+
+  final HeroIcons icon;
+  final String title;
+  final String subtitle;
+  final VoidCallback onTap;
+  final bool accent;
+
+  @override
+  State<_DepthCard> createState() => _DepthCardState();
+}
+
+class _DepthCardState extends State<_DepthCard> {
+  bool _hover = false;
+
+  @override
+  Widget build(BuildContext context) {
+    final onColor = widget.accent ? ShowColors.cream : ShowColors.ink;
+    final subColor = widget.accent
+        ? ShowColors.cream.withValues(alpha: 0.82)
+        : ShowColors.inkMuted;
+    final base = widget.accent ? ShowColors.accent : ShowColors.creamSunken;
+    final hovered = widget.accent ? ShowColors.accentPressed : ShowColors.creamRaised;
+
+    return MouseRegion(
+      onEnter: (_) => setState(() => _hover = true),
+      onExit: (_) => setState(() => _hover = false),
+      cursor: SystemMouseCursors.click,
+      child: ShowPressable(
+        onTap: widget.onTap,
+        child: AnimatedContainer(
+          duration: ShowMotion.fast,
+          curve: ShowMotion.entrance,
+          padding: const EdgeInsets.all(ShowSpacing.lg),
+          decoration: BoxDecoration(
+            color: _hover ? hovered : base,
+            borderRadius: BorderRadius.circular(20),
+          ),
+          child: Row(
+            children: [
+              HeroIcon(widget.icon, size: 30, color: onColor),
+              const SizedBox(width: ShowSpacing.md),
+              Expanded(
+                child: Column(
+                  crossAxisAlignment: CrossAxisAlignment.start,
+                  children: [
+                    Text(widget.title,
+                        style: ShowType.h3.copyWith(color: onColor)),
+                    const SizedBox(height: ShowSpacing.xs),
+                    Text(widget.subtitle,
+                        style: ShowType.bodyMuted.copyWith(color: subColor)),
+                  ],
+                ),
+              ),
+              const SizedBox(width: ShowSpacing.md),
+              AnimatedSlide(
+                offset: Offset(_hover ? 0.28 : 0, 0),
+                duration: ShowMotion.fast,
+                curve: ShowMotion.entrance,
+                child: HeroIcon(HeroIcons.arrowRight, size: 22, color: onColor),
+              ),
+            ],
+          ),
+        ),
+      ),
     );
   }
 }

@@ -20,6 +20,9 @@ type User struct {
 	Role         Role      `json:"role"`
 	CreatedAt    time.Time `json:"createdAt"`
 	Profile      Profile   `json:"profile"`
+	// Approved gates app access: a signed-in user waits in the Waiting Area
+	// until an admin approves them. Admins are always approved.
+	Approved bool `json:"approved"`
 }
 
 // Profile is user-editable presentation data.

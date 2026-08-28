@@ -15,10 +15,14 @@ class ProfileScreen extends StatefulWidget {
 
 class _ProfileScreenState extends State<ProfileScreen> {
   Map<String, dynamic>? _sub;
+  bool _loaded = false;
 
   @override
-  void initState() {
-    super.initState();
+  void didChangeDependencies() {
+    super.didChangeDependencies();
+    // SessionScope is an inherited widget; read it here, not in initState().
+    if (_loaded) return;
+    _loaded = true;
     final session = SessionScope.of(context);
     session.refreshProfile().catchError((_) {});
     session.api.mySubscription().then((s) {

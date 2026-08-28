@@ -13,12 +13,13 @@ class NotificationsScreen extends StatefulWidget {
 }
 
 class _NotificationsScreenState extends State<NotificationsScreen> {
-  late Future<List<dynamic>> _future;
+  Future<List<dynamic>>? _future;
 
   @override
-  void initState() {
-    super.initState();
-    _future = SessionScope.of(context).api.notifications();
+  void didChangeDependencies() {
+    super.didChangeDependencies();
+    // SessionScope is an inherited widget; read it here, not in initState().
+    _future ??= SessionScope.of(context).api.notifications();
   }
 
   @override

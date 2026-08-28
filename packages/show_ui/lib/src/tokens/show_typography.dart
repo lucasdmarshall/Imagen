@@ -31,24 +31,26 @@ class ShowType {
   }
 
   // Display / headlines — Swiss style: tight, confident, left-aligned.
-  static TextStyle get display => _base(40, FontWeight.w700, height: 1.1, spacing: -0.5);
-  static TextStyle get h1 => _base(30, FontWeight.w700, height: 1.15, spacing: -0.3);
-  static TextStyle get h2 => _base(24, FontWeight.w600, height: 1.2);
-  static TextStyle get h3 => _base(20, FontWeight.w600, height: 1.25);
+  // Scale trimmed a touch: long Burmese strings were overflowing at the old
+  // (larger) sizes. Still comfortably legible for a 40+ audience.
+  static TextStyle get display => _base(32, FontWeight.w700, height: 1.15, spacing: -0.3);
+  static TextStyle get h1 => _base(25, FontWeight.w700, height: 1.2, spacing: -0.2);
+  static TextStyle get h2 => _base(21, FontWeight.w600, height: 1.25);
+  static TextStyle get h3 => _base(18, FontWeight.w600, height: 1.3);
 
   // Body — generous for legibility.
-  static TextStyle get bodyLarge => _base(19, FontWeight.w400, height: 1.5);
-  static TextStyle get body => _base(17, FontWeight.w400, height: 1.5);
+  static TextStyle get bodyLarge => _base(17, FontWeight.w400, height: 1.5);
+  static TextStyle get body => _base(16, FontWeight.w400, height: 1.5);
   static TextStyle get bodyMuted =>
-      _base(17, FontWeight.w400, height: 1.5, color: ShowColors.inkMuted);
+      _base(16, FontWeight.w400, height: 1.5, color: ShowColors.inkMuted);
 
   // Supporting.
-  static TextStyle get label => _base(15, FontWeight.w600, spacing: 0.2);
+  static TextStyle get label => _base(14, FontWeight.w600, spacing: 0.2);
   static TextStyle get caption =>
-      _base(13, FontWeight.w400, color: ShowColors.inkFaint);
+      _base(12, FontWeight.w400, color: ShowColors.inkFaint);
 
   // Buttons / controls.
-  static TextStyle get button => _base(17, FontWeight.w600, spacing: 0.2);
+  static TextStyle get button => _base(16, FontWeight.w600, spacing: 0.2);
 
   /// Returns [style] with the Myanmar family applied, if one has been set.
   static TextStyle withMyanmar(TextStyle style) {

@@ -14,6 +14,7 @@ import (
 
 	"github.com/show/api/internal/aiclient"
 	"github.com/show/api/internal/domain"
+	"github.com/show/api/internal/firebase"
 	"github.com/show/api/internal/store"
 )
 
@@ -96,6 +97,38 @@ func (a *AuthService) Login(email, password string) (*domain.User, string, error
 	}
 	if bcrypt.CompareHashAndPassword([]byte(u.PasswordHash), []byte(password)) != nil {
 		return nil, "", ErrInvalidCredentials
+	}
+	token, err := a.issue(u.ID)
+	return u, token, err
+}
+
+// LoginWithGoogle verifies a Firebase Google ID token, finds or creates the
+// matching user, and issues a session token. New Google users are unapproved
+// (they land in the Waiting Area until an admin approves them), just like
+// email sign-ups.
+func (a *AuthService) LoginWithGoogle(idToken string) (*domain.User, string, error) {
+	claims, err := firebase.VerifyIDToken(idToken)
+	if err != nil {
+		return nil, "", ErrUnauthorized
+	}
+	email := strings.ToLower(strings.TrimSpace(claims.Email))
+	if email == "" {
+		return nil, "", ErrUnauthorized
+	}
+	u, err := a.store.GetUserByEmail(email)
+	if err != nil {
+		// First time this Google account signs in — create the account.
+		u = &domain.User{
+			ID:        newID(),
+			Email:     email,
+			Role:      domain.RoleUser,
+			CreatedAt: time.Now().UTC(),
+			Profile:   domain.Profile{DisplayName: claims.Name, Locale: "my"},
+		}
+		if err := a.store.CreateUser(u); err != nil {
+			return nil, "", err
+		}
+		_ = a.subs.SetPlan(u.ID, domain.PlanFree)
 	}
 	token, err := a.issue(u.ID)
 	return u, token, err
@@ -323,6 +356,20 @@ func (a *AdminService) SetRole(userID string, role domain.Role) error {
 		return err
 	}
 	u.Role = role
+	// An admin is implicitly approved — they must never be stuck in the gate.
+	if role == domain.RoleAdmin {
+		u.Approved = true
+	}
+	return a.store.UpdateUser(u)
+}
+
+// SetApproval flips the Waiting-Area gate for a user (Approvals section).
+func (a *AdminService) SetApproval(userID string, approved bool) error {
+	u, err := a.store.GetUserByID(userID)
+	if err != nil {
+		return err
+	}
+	u.Approved = approved
 	return a.store.UpdateUser(u)
 }
 

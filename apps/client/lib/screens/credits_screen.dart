@@ -13,11 +13,13 @@ class CreditsScreen extends StatefulWidget {
 }
 
 class _CreditsScreenState extends State<CreditsScreen> {
-  late Future<List<dynamic>> _history;
+  Future<List<dynamic>>? _history;
 
   @override
-  void initState() {
-    super.initState();
+  void didChangeDependencies() {
+    super.didChangeDependencies();
+    // SessionScope is an inherited widget; read it here, not in initState().
+    if (_history != null) return;
     final session = SessionScope.of(context);
     _history = session.api.creditHistory();
     session.refreshBalance();

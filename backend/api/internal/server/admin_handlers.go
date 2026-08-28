@@ -40,6 +40,22 @@ func (s *Server) handleAdminSetRole(w http.ResponseWriter, r *http.Request) {
 	httpx.JSON(w, http.StatusOK, map[string]string{"status": "ok"})
 }
 
+// handleAdminSetApproval approves (or revokes) a user's Waiting-Area access.
+func (s *Server) handleAdminSetApproval(w http.ResponseWriter, r *http.Request) {
+	var in struct {
+		Approved bool `json:"approved"`
+	}
+	if err := httpx.Decode(r, &in); err != nil {
+		httpx.Error(w, err)
+		return
+	}
+	if err := s.svc.Admin.SetApproval(r.PathValue("id"), in.Approved); err != nil {
+		httpx.Error(w, err)
+		return
+	}
+	httpx.JSON(w, http.StatusOK, map[string]string{"status": "ok"})
+}
+
 func (s *Server) handleAdminAdjustCredits(w http.ResponseWriter, r *http.Request) {
 	var in struct {
 		Delta int    `json:"delta"`

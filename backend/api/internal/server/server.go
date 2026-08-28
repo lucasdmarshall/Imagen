@@ -33,6 +33,7 @@ func (s *Server) Routes() http.Handler {
 	mux.HandleFunc("GET /healthz", s.handleHealth)
 	mux.HandleFunc("POST /api/v1/auth/register", s.handleRegister)
 	mux.HandleFunc("POST /api/v1/auth/login", s.handleLogin)
+	mux.HandleFunc("POST /api/v1/auth/google", s.handleGoogleAuth)
 	mux.HandleFunc("GET /api/v1/store/items", s.handleStoreItems)
 	mux.HandleFunc("GET /api/v1/subscriptions/plans", s.handlePlans)
 	mux.HandleFunc("GET /api/v1/payments/methods", s.handlePaymentMethods)
@@ -60,6 +61,7 @@ func (s *Server) Routes() http.Handler {
 	mux.HandleFunc("GET /api/v1/admin/users", httpx.AdminOnly(auth, s.handleAdminListUsers))
 	mux.HandleFunc("GET /api/v1/admin/users/{id}", httpx.AdminOnly(auth, s.handleAdminUserDetail))
 	mux.HandleFunc("POST /api/v1/admin/users/{id}/role", httpx.AdminOnly(auth, s.handleAdminSetRole))
+	mux.HandleFunc("POST /api/v1/admin/users/{id}/approve", httpx.AdminOnly(auth, s.handleAdminSetApproval))
 	mux.HandleFunc("POST /api/v1/admin/users/{id}/credits", httpx.AdminOnly(auth, s.handleAdminAdjustCredits))
 	mux.HandleFunc("POST /api/v1/admin/users/{id}/plan", httpx.AdminOnly(auth, s.handleAdminSetPlan))
 
