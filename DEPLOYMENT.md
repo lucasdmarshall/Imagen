@@ -8,20 +8,25 @@ by hand.
 
 Three containers, defined in [`docker-compose.yml`](docker-compose.yml):
 
-| Container      | Image / build      | Exposed        | Purpose                    |
-| -------------- | ------------------ | -------------- | -------------------------- |
-| `show_postgres`| postgres:16-alpine | `5432`         | Database (persistent volume)|
-| `show_ai`      | `backend/ai`       | internal only  | Python FastAPI AI service  |
-| `show_api`     | `backend/api`      | `8080` (public)| Go API gateway             |
+| Container      | Image / build      | Exposed         | Purpose                     |
+| -------------- | ------------------ | --------------- | --------------------------- |
+| `show_postgres`| postgres:16-alpine | internal only   | Database (persistent volume)|
+| `show_ai`      | `backend/ai`       | internal only   | Python FastAPI AI service   |
+| `show_api`     | `backend/api`      | `8090` (public) | Go API gateway              |
 
 The API reaches the AI service at `http://ai:8000` and Postgres at
-`postgres:5432` over the compose network. Only `:8080` is published.
+`postgres:5432` over the compose network. Only the API is published, on the
+host port from `API_HOST_PORT` (this server uses **8090** because 8080 is taken
+by another app). Live: `http://187.52.120.117:8090/healthz`.
 
-> **Note — persistence:** the Go API currently uses an in-memory store, so a
-> redeploy resets users/approvals until the Postgres-backed store is
-> implemented (the `postgres` container and schema are already in place). The
-> DB schema in `backend/api/migrations/` is auto-applied the first time the
-> Postgres volume is created.
+> **Persistence:** the Go API uses the Postgres store whenever `DATABASE_URL`
+> is set (it is, via compose), so users/approvals survive redeploys. The
+> embedded SQL migrations in `backend/api/migrations/` are idempotent and run
+> automatically on every API startup.
+
+> **First admin:** set `ADMIN_EMAIL` and `ADMIN_PASSWORD` in the server `.env`;
+> the API creates/promotes that approved admin on startup (production has no dev
+> tools). This server is seeded with `admin@show.dev`.
 
 ## One-time server setup
 
