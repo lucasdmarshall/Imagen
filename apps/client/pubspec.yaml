@@ -44,6 +44,9 @@ dependencies:
   # Reference-photo picker (gallery / camera; works on Flutter Web too).
   image_picker: ^1.1.2
 
+  # Save generated images to the device photo gallery (Android / iOS).
+  gal: ^2.3.2
+
   # MediaType for multipart uploads (also a transitive http dep).
   http_parser: ^4.0.2
 
@@ -52,6 +55,7 @@ dependencies:
   cupertino_icons: ^1.0.8
   firebase_core: ^4.14.0
   firebase_auth: ^6.6.1
+  shared_preferences: ^2.5.3
 
 dev_dependencies:
   flutter_test:
@@ -77,12 +81,20 @@ flutter:
 
   assets:
     - assets/
+    - assets/effects/
 
-  # Myanmar font. Applied via ShowType.myanmarFontFamily in main().
+  # Noto Sans Myanmar — real OpenType `mym2` shaping (HarfBuzz/CanvasKit).
+  # NamKhoneUnicode.ttf is kept on disk but not registered: its GSUB lives in
+  # private zz## tags that Flutter never applies (dotted circles).
   fonts:
-    - family: NamKhone
+    - family: NotoSansMyanmar
       fonts:
-        - asset: assets/NamKhoneUnicode.ttf
+        - asset: assets/fonts/NotoSansMyanmar-Regular.ttf
+          weight: 400
+        - asset: assets/fonts/NotoSansMyanmar-Bold.ttf
+          weight: 600
+        - asset: assets/fonts/NotoSansMyanmar-Bold.ttf
+          weight: 700
 
   # An image asset can refer to one or more resolution-specific "variants", see
   # https://flutter.dev/to/resolution-aware-images

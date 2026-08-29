@@ -3,6 +3,7 @@ package server
 import (
 	"crypto/rand"
 	"encoding/hex"
+	"io"
 	"net/http"
 	"time"
 
@@ -42,9 +43,24 @@ func (s *Server) handleUpload(w http.ResponseWriter, r *http.Request) {
 	}
 	defer file.Close()
 
-	buf := make([]byte, header.Size)
-	if _, err := readFull(file, buf); err != nil {
+	lim := s.cfg.MaxBodyBytes
+	if lim <= 0 {
+		lim = 32 << 20
+	}
+	// header.Size can be -1 (unknown) which would panic make([]byte, Size).
+	buf, err := io.ReadAll(io.LimitReader(file, lim+1))
+	if err != nil {
 		httpx.Error(w, err)
+		return
+	}
+	if len(buf) == 0 {
+		httpx.JSON(w, http.StatusBadRequest, map[string]string{
+			"error": "empty_file", "detail": "uploaded file is empty",
+		})
+		return
+	}
+	if int64(len(buf)) > lim {
+		httpx.Error(w, &http.MaxBytesError{Limit: lim})
 		return
 	}
 	ct := header.Header.Get("Content-Type")
@@ -80,20 +96,4 @@ func randID() string {
 	b := make([]byte, 16)
 	_, _ = rand.Read(b)
 	return hex.EncodeToString(b)
-}
-
-// readFull fills buf from r, tolerating short multipart reads.
-func readFull(r interface{ Read([]byte) (int, error) }, buf []byte) (int, error) {
-	total := 0
-	for total < len(buf) {
-		n, err := r.Read(buf[total:])
-		total += n
-		if err != nil {
-			if total == len(buf) {
-				return total, nil
-			}
-			return total, err
-		}
-	}
-	return total, nil
 }

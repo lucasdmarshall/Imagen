@@ -1,7 +1,11 @@
+import 'dart:async';
+
 import 'package:flutter/material.dart';
 import 'package:show_ui/show_ui.dart';
 
 import 'api.dart';
+import 'store_screen.dart';
+import 'users_screen.dart';
 
 void main() => runApp(const ShowAdminApp());
 
@@ -114,20 +118,39 @@ class _AdminLoginState extends State<AdminLogin> {
   }
 }
 
-class AdminHome extends StatelessWidget {
+class AdminHome extends StatefulWidget {
   const AdminHome({super.key, required this.api});
   final AdminApi api;
 
   @override
+  State<AdminHome> createState() => _AdminHomeState();
+}
+
+class _AdminHomeState extends State<AdminHome> {
+  @override
+  void initState() {
+    super.initState();
+    widget.api.startLive();
+  }
+
+  @override
+  void dispose() {
+    widget.api.stopLive();
+    super.dispose();
+  }
+
+  @override
   Widget build(BuildContext context) {
+    final api = widget.api;
     final sections = <(String, String, Widget?)>[
       ('Approvals', 'Approve users waiting in the gate.',
           ApprovalsScreen(api: api)),
-      ('Users', 'View, search, and manage user accounts.', null),
-      ('Store', 'Manage catalog and store items.', null),
-      ('Subscriptions', 'Plans: Free, Pro Monthly, Pro Yearly.', null),
-      ('Moderation', 'Review generated content.', null),
-      ('Analytics', 'Usage and revenue dashboards.', null),
+      ('Users', 'View, search, and manage user accounts.',
+          UsersScreen(api: api)),
+      ('Store', 'Edit prices and credit amounts. Changes apply immediately.',
+          StoreScreen(api: api)),
+      ('Subscriptions', 'Approve store payments. Credits enter after Approve.',
+          SubscriptionsScreen(api: api)),
     ];
     return Scaffold(
       appBar: AppBar(title: const Text('SHOW Admin')),
@@ -193,14 +216,33 @@ class ApprovalsScreen extends StatefulWidget {
 class _ApprovalsScreenState extends State<ApprovalsScreen> {
   late Future<List<Map<String, dynamic>>> _future;
   final _working = <String>{};
+  StreamSubscription<String>? _live;
 
   @override
   void initState() {
     super.initState();
     _future = widget.api.listUsers();
+    _live = widget.api.live.listen((topic) {
+      if (topic == 'users' && mounted) _reload(silent: true);
+    });
   }
 
-  void _reload() => setState(() => _future = widget.api.listUsers());
+  @override
+  void dispose() {
+    _live?.cancel();
+    super.dispose();
+  }
+
+  void _reload({bool silent = false}) {
+    final f = widget.api.listUsers();
+    if (!silent) {
+      setState(() => _future = f);
+      return;
+    }
+    f.whenComplete(() {
+      if (mounted) setState(() => _future = f);
+    });
+  }
 
   Future<void> _approve(String id) async {
     setState(() => _working.add(id));
@@ -248,7 +290,10 @@ class _ApprovalsScreenState extends State<ApprovalsScreen> {
                   );
                 }
                 final pending = (snap.data ?? const [])
-                    .where((u) => u['approved'] != true)
+                    .where((u) =>
+                        u['approved'] != true &&
+                        u['banned'] != true &&
+                        u['role'] != 'admin')
                     .toList();
                 if (pending.isEmpty) {
                   return const Center(
@@ -308,5 +353,276 @@ class _ApprovalsScreenState extends State<ApprovalsScreen> {
         ),
       ),
     );
+  }
+}
+
+/// Pending store purchases. Credits / plans apply only after Approve.
+class SubscriptionsScreen extends StatefulWidget {
+  const SubscriptionsScreen({super.key, required this.api});
+  final AdminApi api;
+
+  @override
+  State<SubscriptionsScreen> createState() => _SubscriptionsScreenState();
+}
+
+class _SubscriptionsScreenState extends State<SubscriptionsScreen> {
+  String _filter = 'pending';
+  late Future<List<Map<String, dynamic>>> _future;
+  final _working = <String>{};
+  StreamSubscription<String>? _live;
+
+  @override
+  void initState() {
+    super.initState();
+    _future = widget.api.listPayments(_filter);
+    _live = widget.api.live.listen((topic) {
+      if (topic == 'payments' && mounted) _reload(silent: true);
+    });
+  }
+
+  @override
+  void dispose() {
+    _live?.cancel();
+    super.dispose();
+  }
+
+  void _reload({bool silent = false}) {
+    final f = widget.api.listPayments(_filter);
+    if (!silent) {
+      setState(() => _future = f);
+      return;
+    }
+    f.whenComplete(() {
+      if (mounted) setState(() => _future = f);
+    });
+  }
+
+  Future<void> _approve(String id) async {
+    setState(() => _working.add(id));
+    try {
+      await widget.api.approvePayment(id);
+      _reload();
+    } catch (e) {
+      if (mounted) {
+        ScaffoldMessenger.of(context)
+            .showSnackBar(SnackBar(content: Text('$e')));
+      }
+    } finally {
+      if (mounted) setState(() => _working.remove(id));
+    }
+  }
+
+  Future<void> _reject(String id) async {
+    final note = await showDialog<String>(
+      context: context,
+      builder: (ctx) {
+        final ctrl = TextEditingController();
+        return AlertDialog(
+          title: const Text('Reject payment'),
+          content: TextField(
+            controller: ctrl,
+            decoration: const InputDecoration(hintText: 'Note (optional)'),
+          ),
+          actions: [
+            TextButton(
+                onPressed: () => Navigator.pop(ctx),
+                child: const Text('Cancel')),
+            FilledButton(
+                onPressed: () => Navigator.pop(ctx, ctrl.text.trim()),
+                child: const Text('Reject')),
+          ],
+        );
+      },
+    );
+    if (note == null) return;
+    setState(() => _working.add(id));
+    try {
+      await widget.api.rejectPayment(id, note);
+      _reload();
+    } catch (e) {
+      if (mounted) {
+        ScaffoldMessenger.of(context)
+            .showSnackBar(SnackBar(content: Text('$e')));
+      }
+    } finally {
+      if (mounted) setState(() => _working.remove(id));
+    }
+  }
+
+  @override
+  Widget build(BuildContext context) {
+    return Scaffold(
+      appBar: AppBar(
+        title: const Text('Subscriptions'),
+        actions: [
+          IconButton(onPressed: _reload, icon: const Icon(Icons.refresh)),
+        ],
+      ),
+      body: SafeArea(
+        child: Center(
+          child: ConstrainedBox(
+            constraints:
+                const BoxConstraints(maxWidth: ShowSizing.maxContentWidth),
+            child: Column(
+              children: [
+                Padding(
+                  padding: const EdgeInsets.fromLTRB(
+                      ShowSpacing.pageInset, ShowSpacing.md, ShowSpacing.pageInset, 0),
+                  child: Row(
+                    children: [
+                      FilterChip(
+                        label: const Text('Pending'),
+                        selected: _filter == 'pending',
+                        onSelected: (_) {
+                          _filter = 'pending';
+                          _reload();
+                        },
+                      ),
+                      const SizedBox(width: ShowSpacing.sm),
+                      FilterChip(
+                        label: const Text('All'),
+                        selected: _filter.isEmpty,
+                        onSelected: (_) {
+                          _filter = '';
+                          _reload();
+                        },
+                      ),
+                    ],
+                  ),
+                ),
+                Expanded(
+                  child: FutureBuilder<List<Map<String, dynamic>>>(
+                    future: _future,
+                    builder: (context, snap) {
+                      if (snap.connectionState != ConnectionState.done) {
+                        return const Center(child: CircularProgressIndicator());
+                      }
+                      if (snap.hasError) {
+                        return Center(
+                          child: Padding(
+                            padding: const EdgeInsets.all(ShowSpacing.xl),
+                            child: Text('${snap.error}',
+                                style: ShowType.bodyMuted,
+                                textAlign: TextAlign.center),
+                          ),
+                        );
+                      }
+                      final rows = snap.data ?? const [];
+                      if (rows.isEmpty) {
+                        return const Center(
+                          child: ShowEmpty(
+                            title: 'No payments',
+                            subtitle:
+                                'Store submissions show up here for review.',
+                          ),
+                        );
+                      }
+                      return ListView.separated(
+                        padding: const EdgeInsets.symmetric(
+                            horizontal: ShowSpacing.pageInset,
+                            vertical: ShowSpacing.lg),
+                        itemCount: rows.length,
+                        separatorBuilder: (_, _) => const Divider(),
+                        itemBuilder: (context, i) => _PaymentRow(
+                          order: rows[i],
+                          busy: _working.contains(
+                              rows[i]['id'] as String? ?? ''),
+                          onApprove: () =>
+                              _approve(rows[i]['id'] as String),
+                          onReject: () =>
+                              _reject(rows[i]['id'] as String),
+                        ),
+                      );
+                    },
+                  ),
+                ),
+              ],
+            ),
+          ),
+        ),
+      ),
+    );
+  }
+}
+
+class _PaymentRow extends StatelessWidget {
+  const _PaymentRow({
+    required this.order,
+    required this.busy,
+    required this.onApprove,
+    required this.onReject,
+  });
+
+  final Map<String, dynamic> order;
+  final bool busy;
+  final VoidCallback onApprove;
+  final VoidCallback onReject;
+
+  @override
+  Widget build(BuildContext context) {
+    final pending = order['status'] == 'pending';
+    final email = order['userEmail'] as String? ?? '';
+    final name = (order['userName'] as String?)?.trim() ?? '';
+    final item =
+        order['itemName'] as String? ?? order['itemId'] as String? ?? '';
+    final kind = order['kind'] as String? ?? '';
+    final method = order['method'] as String? ?? '';
+    final price = order['priceMmk'];
+    final status = order['status'] as String? ?? '';
+    final created = _fmtDate(order['createdAt'] as String?);
+    return Padding(
+      padding: const EdgeInsets.symmetric(vertical: ShowSpacing.md),
+      child: Row(
+        crossAxisAlignment: CrossAxisAlignment.start,
+        children: [
+          Expanded(
+            child: Column(
+              crossAxisAlignment: CrossAxisAlignment.start,
+              children: [
+                Text(item, style: ShowType.h3),
+                const SizedBox(height: ShowSpacing.xs),
+                Text(
+                  [
+                    name.isEmpty ? email : '$name · $email',
+                    kind == 'subscription' ? 'Subscription' : 'Add-on',
+                    if (method.isNotEmpty) method,
+                    if (price != null) '$price MMK',
+                    if (created.isNotEmpty) created,
+                    status,
+                  ].where((s) => s.isNotEmpty).join(' · '),
+                  style: ShowType.bodyMuted,
+                ),
+              ],
+            ),
+          ),
+          if (pending) ...[
+            const SizedBox(width: ShowSpacing.md),
+            Column(
+              crossAxisAlignment: CrossAxisAlignment.end,
+              children: [
+                FilledButton(
+                  onPressed: busy ? null : onApprove,
+                  style: FilledButton.styleFrom(
+                      minimumSize: const Size(0, ShowSizing.controlHeight)),
+                  child: Text(busy ? '…' : 'Approve'),
+                ),
+                const SizedBox(height: ShowSpacing.xs),
+                TextButton(
+                  onPressed: busy ? null : onReject,
+                  child: const Text('Reject'),
+                ),
+              ],
+            ),
+          ],
+        ],
+      ),
+    );
+  }
+
+  String _fmtDate(String? iso) {
+    if (iso == null || iso.isEmpty) return '';
+    final d = DateTime.tryParse(iso)?.toLocal();
+    if (d == null) return '';
+    return '${d.day}/${d.month}/${d.year}';
   }
 }

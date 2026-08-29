@@ -64,6 +64,18 @@ func (s *Server) Routes() http.Handler {
 	mux.HandleFunc("POST /api/v1/admin/users/{id}/approve", httpx.AdminOnly(auth, s.handleAdminSetApproval))
 	mux.HandleFunc("POST /api/v1/admin/users/{id}/credits", httpx.AdminOnly(auth, s.handleAdminAdjustCredits))
 	mux.HandleFunc("POST /api/v1/admin/users/{id}/plan", httpx.AdminOnly(auth, s.handleAdminSetPlan))
+	mux.HandleFunc("POST /api/v1/admin/users/{id}/ban", httpx.AdminOnly(auth, s.handleAdminSetBan))
+	mux.HandleFunc("POST /api/v1/admin/users/{id}/delete", httpx.AdminOnly(auth, s.handleAdminDeleteUser))
+	mux.HandleFunc("POST /api/v1/admin/users/{id}/password", httpx.AdminOnly(auth, s.handleAdminResetPassword))
+	mux.HandleFunc("GET /api/v1/admin/events", httpx.AdminOnly(auth, s.handleAdminEvents))
+	mux.HandleFunc("GET /api/v1/admin/catalog", httpx.AdminOnly(auth, s.handleAdminCatalog))
+	mux.HandleFunc("PATCH /api/v1/admin/catalog/plans/{id}", httpx.AdminOnly(auth, s.handleAdminUpdatePlan))
+	mux.HandleFunc("PATCH /api/v1/admin/catalog/packs/{id}", httpx.AdminOnly(auth, s.handleAdminUpdatePack))
+	mux.HandleFunc("POST /api/v1/admin/catalog/packs", httpx.AdminOnly(auth, s.handleAdminAddPack))
+	mux.HandleFunc("DELETE /api/v1/admin/catalog/packs/{id}", httpx.AdminOnly(auth, s.handleAdminRemovePack))
+	mux.HandleFunc("GET /api/v1/admin/payments", httpx.AdminOnly(auth, s.handleAdminListPayments))
+	mux.HandleFunc("POST /api/v1/admin/payments/{id}/approve", httpx.AdminOnly(auth, s.handleAdminApprovePayment))
+	mux.HandleFunc("POST /api/v1/admin/payments/{id}/reject", httpx.AdminOnly(auth, s.handleAdminRejectPayment))
 
 	// --- DISPOSABLE dev tools (development only) ---
 	// Delete the internal/devtools package and this block after development.
@@ -89,8 +101,22 @@ func (s *Server) handlePaymentMethods(w http.ResponseWriter, _ *http.Request) {
 }
 
 func (s *Server) handlePaymentProof(w http.ResponseWriter, r *http.Request) {
-	// TODO(payments): persist uploaded proof for admin review.
-	httpx.JSON(w, http.StatusAccepted, map[string]string{"status": "received"})
+	u := httpx.UserFrom(r.Context())
+	var in struct {
+		ItemID        string `json:"itemId"`
+		Method        string `json:"method"`
+		ProofUploadID string `json:"proofUploadId"`
+	}
+	if err := httpx.Decode(r, &in); err != nil {
+		httpx.Error(w, err)
+		return
+	}
+	order, err := s.svc.Payments.SubmitProof(u, in.ItemID, in.Method, in.ProofUploadID)
+	if err != nil {
+		httpx.Error(w, err)
+		return
+	}
+	httpx.JSON(w, http.StatusAccepted, order)
 }
 
 // withMiddleware wraps the router in the security + idempotency stack. Order

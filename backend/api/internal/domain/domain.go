@@ -23,6 +23,15 @@ type User struct {
 	// Approved gates app access: a signed-in user waits in the Waiting Area
 	// until an admin approves them. Admins are always approved.
 	Approved bool `json:"approved"`
+	// Banned blocks the app after login. Lifted by an admin without re-approval.
+	Banned bool `json:"banned"`
+	// DeletedAt is set when an admin deletes the account. Login then returns 404.
+	DeletedAt *time.Time `json:"deletedAt,omitempty"`
+}
+
+// Deleted reports whether an admin has removed this account.
+func (u *User) Deleted() bool {
+	return u != nil && u.DeletedAt != nil && !u.DeletedAt.IsZero()
 }
 
 // Profile is user-editable presentation data.
@@ -73,12 +82,13 @@ const (
 
 // StoreItem is a purchasable product in the Store.
 type StoreItem struct {
-	ID       string        `json:"id"`
-	Kind     StoreItemKind `json:"kind"`
-	Name     string        `json:"name"`
-	PriceMMK int           `json:"priceMmk"`
-	Credits  int           `json:"credits,omitempty"` // for credit packs
-	PlanID   PlanID        `json:"planId,omitempty"`  // for subscriptions
+	ID        string        `json:"id"`
+	Kind      StoreItemKind `json:"kind"`
+	Name      string        `json:"name"`
+	PriceMMK  int           `json:"priceMmk"`
+	Credits   int           `json:"credits,omitempty"` // packs: granted add-on; subs: monthly allotment
+	PlanID    PlanID        `json:"planId,omitempty"`  // for subscriptions
+	SortOrder int           `json:"sortOrder,omitempty"`
 }
 
 // --- Credits -----------------------------------------------------------------
@@ -92,7 +102,57 @@ const (
 	CreditConsume     CreditReason = "consume"      // AI usage
 	CreditRefund      CreditReason = "refund"
 	CreditAdminAdjust CreditReason = "admin_adjust" // manual admin change
+	CreditExpire      CreditReason = "expire"       // unused subscription credits at period end
 )
+
+// CreditWallet splits a user's balance into two buckets:
+//   - SubscriptionCredits expire at the end of each monthly period and are
+//     replaced by the next month's allotment (they do not stack).
+//   - AddonCredits never expire and carry over.
+type CreditWallet struct {
+	UserID              string    `json:"userId"`
+	SubscriptionCredits int       `json:"subscriptionCredits"`
+	AddonCredits        int       `json:"addonCredits"`
+	SubPeriodEndsAt     time.Time `json:"subPeriodEndsAt"`
+}
+
+// Total is subscription + add-on credits.
+func (w *CreditWallet) Total() int {
+	if w == nil {
+		return 0
+	}
+	return w.SubscriptionCredits + w.AddonCredits
+}
+
+// --- Payments ----------------------------------------------------------------
+
+const (
+	PaymentPending  = "pending"
+	PaymentApproved = "approved"
+	PaymentRejected = "rejected"
+)
+
+// PaymentOrder is a store purchase waiting for (or already given) admin review.
+// Credits are granted only after status becomes approved.
+type PaymentOrder struct {
+	ID            string        `json:"id"`
+	UserID        string        `json:"userId"`
+	UserEmail     string        `json:"userEmail"`
+	UserName      string        `json:"userName"`
+	ItemID        string        `json:"itemId"`
+	Kind          StoreItemKind `json:"kind"`
+	ItemName      string        `json:"itemName"`
+	PriceMMK      int           `json:"priceMmk"`
+	Credits       int           `json:"credits,omitempty"`
+	PlanID        PlanID        `json:"planId,omitempty"`
+	Method        string        `json:"method"`
+	ProofUploadID string        `json:"proofUploadId"`
+	Status        string        `json:"status"`
+	AdminNote     string        `json:"adminNote,omitempty"`
+	CreatedAt     time.Time     `json:"createdAt"`
+	ReviewedAt    *time.Time    `json:"reviewedAt,omitempty"`
+	ReviewedBy    string        `json:"reviewedBy,omitempty"`
+}
 
 // CreditTransaction is one immutable ledger entry. Amount is signed
 // (positive = added, negative = deducted).

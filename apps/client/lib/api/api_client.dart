@@ -81,8 +81,11 @@ class ApiClient {
       (await _send('PATCH', '/api/v1/profile', patch)) as Map<String, dynamic>;
 
   // --- Credits ---
+  Future<Map<String, dynamic>> creditWallet() async =>
+      (await _send('GET', '/api/v1/credits/balance')) as Map<String, dynamic>;
+
   Future<int> balance() async =>
-      ((await _send('GET', '/api/v1/credits/balance')) as Map)['balance'] as int;
+      (await creditWallet())['balance'] as int;
 
   Future<List<dynamic>> creditHistory() async =>
       ((await _send('GET', '/api/v1/credits/history')) as Map)['transactions'] as List;
@@ -96,6 +99,15 @@ class ApiClient {
 
   Future<List<dynamic>> paymentMethods() async =>
       ((await _send('GET', '/api/v1/payments/methods')) as Map)['methods'] as List;
+
+  Future<Map<String, dynamic>> submitPaymentProof({
+    required String itemId,
+    required String method,
+  }) async =>
+      (await _send('POST', '/api/v1/payments/proof', {
+        'itemId': itemId,
+        'method': method,
+      })) as Map<String, dynamic>;
 
   Future<Map<String, dynamic>?> mySubscription() async =>
       (await _send('GET', '/api/v1/subscriptions/me')) as Map<String, dynamic>?;

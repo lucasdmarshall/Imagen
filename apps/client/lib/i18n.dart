@@ -33,8 +33,8 @@ class T {
   String get continueWithGoogle => pick('Google ဖြင့် ဝင်ရောက်ရန်', 'Continue with Google');
   String get orUseEmail => pick('သို့မဟုတ် အီးမေးလ်ဖြင့်', 'or use email');
   String get googleSetupNeeded => pick(
-      'Google Sign-in ချိတ်ဆက်ရန် setup လိုအပ်သေးသည် (Client ID)',
-      'Google sign-in needs setup (Client ID).');
+      'Google Sign-in အတွက် Firebase မှာ Android app (com.show.show_client) ထည့်ရန် လိုသေးသည်',
+      'Google sign-in needs an Android Firebase app (com.show.show_client).');
 
   // Waiting Area (approval gate)
   String get waitingTitle => pick('ခဏစောင့်ပါ', "You're on the list");
@@ -42,6 +42,19 @@ class T {
       'သင့်အကောင့်ကို Admin မှ အတည်ပြုပေးရန် စောင့်ဆိုင်းနေပါသည်။ အတည်ပြုပြီးသည်နှင့် အလိုအလျောက် ဝင်ရောက်နိုင်ပါမည်။',
       "Your account is awaiting admin approval. You'll get in automatically once approved.");
   String get checkAgain => pick('ပြန်စစ်မည်', 'Check again');
+
+  String get bannedTitle => pick(
+      'ဒီ app ကို သင်လက်တလော အသုံးပြုမရနိုင်သေးပါ',
+      'You cannot use this app right now');
+  String get bannedSub => pick(
+      'သင့်အကောင့်ကို ယာယီ ပိတ်ထားပါသည်။ Admin မှ ပြန်ဖွင့်ပေးသောအခါ ဤနေရာမှ ဝင်ရောက်နိုင်ပါမည်။',
+      'Your account is temporarily blocked. You can come back once an admin lifts the ban.');
+
+  String get deletedTitle => pick('404', '404');
+  String get deletedSub => pick(
+      'ဒီအကောင့် မရှိတော့ပါ',
+      'This account no longer exists.');
+  String get backToSignIn => pick('ပြန်ဝင်ရန်', 'Back to sign in');
 
   // Home
   String hello(String n) => pick('မင်္ဂလာပါ $n', 'Hello, $n');
@@ -76,6 +89,7 @@ class T {
   // Effect runner page
   String get slotUpload => pick('ပုံ တင်ရန်', 'Upload');
   String get effectRun => pick('ဖန်တီးမည်', 'Generate');
+  String get effectResult => pick('ရလဒ်ပုံ', 'Result');
   String get effectResultHere =>
       pick('ရလဒ်ပုံ ဤနေရာတွင် ပေါ်လာပါမည်', 'Your result appears here');
   String get saveToGallery => pick('Gallery သို့ သိမ်းရန်', 'Save to gallery');
@@ -109,11 +123,17 @@ class T {
   // Store
   String get store => pick('စတိုး', 'Store');
   String get storeHero => pick('စိတ်ကြိုက် ပိုမိုဖန်တီးပါ', 'Create more');
-  String get storeHeroSub => pick('အစီအစဉ် (Plan) ရွေးချယ်ပါ သို့မဟုတ် Credit ထပ်ဖြည့်ပါ',
-      'Pick a plan, or top up credits.');
+  String get storeHeroSub => pick('လစဉ် အစီအစဉ် ရွေးပါ သို့မဟုတ် သက်တမ်းမကုန်သော Credit ထပ်ဖြည့်ပါ',
+      'Pick a monthly plan, or buy add-on credits that never expire.');
   String get subscriptions => pick('Subscriptions (အစီအစဉ်များ)', 'Subscriptions');
-  String get addonCredits => pick('Credit ထပ်ဖြည့်ရန်', 'Add-on credits');
+  String get addonCredits => pick('Credit ထပ်ဖြည့်ရန် (Add-on)', 'Add-on credits');
   String get renewsAuto => pick('အလိုအလျောက် သက်တမ်းတိုးပါသည်', 'Renews automatically');
+  String subCreditsExpire(int n) => pick(
+      'တစ်လ $n credit — လကုန်ရင် သက်တမ်းကုန်ပြီး နောက်လ အသစ် ရောက်လာမည်',
+      '$n credits each month. Unused plan credits expire and refresh next month.');
+  String addonNeverExpires(int n) => pick(
+      '$n credit — သက်တမ်းကုန်ရက် မရှိ၊ ကျန်သမျှ carry over',
+      '$n credits. Never expire — unused credits carry over.');
   String get storeUnavailable => pick('စတိုးကို လောလောဆယ် အသုံးမပြုနိုင်သေးပါ', 'Store unavailable');
   String get free => pick('အခမဲ့', 'Free');
   String creditsAmount(int n) => pick('$n credits', '$n credits');
@@ -121,13 +141,21 @@ class T {
       pick('အောက်ပါ မိုဘိုင်းပိုက်ဆံအိတ် (Wallet) များမှ $price ပေးချေပါ', 'Pay $price via a mobile wallet below.');
   String get receiver => pick('လက်ခံသူ အမည်', 'Receiver');
   String get number => pick('ဖုန်းနံပါတ်', 'Number');
-  String get iPaid => pick('ငွေလွှဲပြီးပါပြီ — အထောက်အထား တင်မည်', 'I have paid — submit proof');
+  String get iPaid => pick('ငွေလွှဲပြီးပါပြီ', 'I have paid');
   String get proofSubmitted =>
-      pick('အထောက်အထား ပေးပို့ပြီးပါပြီ (စစ်ဆေးနေပါသည်)', 'Proof submitted for verification.');
+      pick('Order ပေးပို့ပြီးပါပြီ — Admin အတည်ပြုမှ Credit ဝင်ပါမည်',
+          'Order sent. Credits arrive after admin approval.');
+  String get pickMethodFirst =>
+      pick('ငွေပေးချေမည့် နည်းလမ်း ရွေးပါ', 'Pick a payment method');
+  String get submittingProof => pick('ပေးပို့နေသည်…', 'Submitting…');
 
   // Credits
   String get creditsTitle => pick('Credits', 'Credits');
   String get creditsAvailable => pick('ကျန်ရှိသော Credit', 'credits available');
+  String get planCreditsLabel => pick('အစီအစဉ် Credit', 'Plan credits');
+  String get addonCreditsLabel => pick('Add-on Credit', 'Add-on credits');
+  String expiresOn(String d) => pick('သက်တမ်းကုန် — $d', 'Expires $d');
+  String get neverExpires => pick('သက်တမ်း မကုန်ပါ', 'Never expires');
   String get history => pick('အသုံးပြုမှု မှတ်တမ်း', 'History');
   String get noActivity => pick('မှတ်တမ်း မရှိသေးပါ', 'No activity yet');
   String get noActivitySub =>
@@ -138,6 +166,7 @@ class T {
         'consume' => pick('အသုံးပြုမှု', 'Used'),
         'refund' => pick('ပြန်အမ်းငွေ/Credit', 'Refund'),
         'admin_adjust' => pick('စီမံခန့်ခွဲသူ ချိန်ညှိမှု', 'Adjustment'),
+        'expire' => pick('အစီအစဉ် Credit သက်တမ်းကုန်', 'Plan credits expired'),
         _ => r,
       };
 

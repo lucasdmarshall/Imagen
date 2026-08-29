@@ -1,17 +1,19 @@
 import 'dart:async';
-import 'dart:convert';
 import 'dart:typed_data';
 
 import 'package:flutter/material.dart';
 import 'package:heroicons/heroicons.dart';
 import 'package:http/http.dart' as http;
-import 'package:image_picker/image_picker.dart';
 import 'package:show_ui/show_ui.dart';
 
 import '../data/effects.dart';
 import '../i18n.dart';
 import '../state/session.dart';
+import '../util/gen_result.dart';
+import '../util/image_pick.dart';
 import '../util/saver.dart';
+import '../widgets/effect_card.dart';
+import '../widgets/generating_sparkle.dart';
 
 /// One page per effect: upload the required photo(s), tap generate (the prompt
 /// is hidden), watch the ChatGPT-style loading lines, then view and save the
@@ -70,10 +72,8 @@ class _EffectRunnerScreenState extends State<EffectRunnerScreen> {
   }
 
   Future<void> _pick(int i) async {
-    final picked = await ImagePicker()
-        .pickImage(source: ImageSource.gallery, maxWidth: 1600);
-    if (picked == null) return;
-    final bytes = await picked.readAsBytes();
+    final bytes = await pickCompressedBytes();
+    if (bytes == null) return;
     if (mounted) setState(() => _picked[i] = bytes);
   }
 
@@ -117,6 +117,9 @@ class _EffectRunnerScreenState extends State<EffectRunnerScreen> {
           ? e.promptText
           : e.prompt;
       final prompt = base.replaceAll('{text}', typed ?? '');
+      if (prompt.trim().isEmpty) {
+        throw StateError('Effect ${e.id} has an empty prompt');
+      }
 
       final ids = <String>[];
       for (var i = 0; i < _picked.length; i++) {
@@ -142,36 +145,12 @@ class _EffectRunnerScreenState extends State<EffectRunnerScreen> {
     }
   }
 
-  /// Pull an image out of the model response, tolerating a few shapes
-  /// (data[0].url / data[0].b64_json / top-level url / data URI).
   void _applyResult(dynamic res, T t) {
-    final m = res is Map ? res : const {};
-    final data = m['data'];
-    final first = (data is List && data.isNotEmpty) ? data.first : null;
-    String? url;
-    String? b64;
-    if (first is Map) {
-      url = first['url'] as String?;
-      b64 = first['b64_json'] as String?;
-      url ??= first['image'] as String?;
-    }
-    url ??= m['url'] as String?;
-    b64 ??= m['b64_json'] as String?;
-
-    Uint8List? bytes;
-    if (url != null && url.startsWith('data:')) {
-      b64 = url.split(',').last;
-      url = null;
-    }
-    if (b64 != null) {
-      try {
-        bytes = base64Decode(b64.split(',').last);
-      } catch (_) {}
-    }
+    final g = parseGenResult(res);
     setState(() {
-      _resultBytes = bytes;
-      _resultUrl = url;
-      if (bytes == null && url == null) _error = t.error('no image in response');
+      _resultBytes = g.bytes;
+      _resultUrl = g.url;
+      if (g.isEmpty) _error = t.error('no image in response');
     });
   }
 
@@ -203,22 +182,13 @@ class _EffectRunnerScreenState extends State<EffectRunnerScreen> {
           crossAxisAlignment: CrossAxisAlignment.stretch,
           children: showStagger([
             const SizedBox(height: ShowSpacing.md),
-            Text(t.pick(e.subMy, e.subEn), style: ShowType.bodyMuted),
-            const SizedBox(height: ShowSpacing.lg),
-            // --- Upload slots (1 or 2, side by side) ---
-            Row(
-              crossAxisAlignment: CrossAxisAlignment.start,
-              children: [
-                for (var i = 0; i < e.inputs.length; i++) ...[
-                  if (i > 0) const SizedBox(width: ShowSpacing.md),
-                  Expanded(child: _slot(i, t)),
-                ],
-              ],
-            ),
-            const SizedBox(height: ShowSpacing.lg),
-            const Divider(),
-            const SizedBox(height: ShowSpacing.lg),
-            // --- Result ---
+            _intro(t),
+            const SizedBox(height: ShowSpacing.xl),
+            _inputSection(t),
+            const SizedBox(height: ShowSpacing.xl),
+            Text(t.effectResult,
+                style: ShowType.label.copyWith(color: ShowColors.inkMuted)),
+            const SizedBox(height: ShowSpacing.sm),
             _resultArea(t),
             const SizedBox(height: ShowSpacing.lg),
             _modelSelector(t),
@@ -239,6 +209,29 @@ class _EffectRunnerScreenState extends State<EffectRunnerScreen> {
             ],
           ], initialDelay: const Duration(milliseconds: 60)),
         ),
+      ],
+    );
+  }
+
+  /// Title lives in the app bar (`<- Effect name`). Description left, card
+  /// face (the same 3:2 before/after as the gallery) on the right.
+  Widget _intro(T t) {
+    return Row(
+      crossAxisAlignment: CrossAxisAlignment.start,
+      children: [
+        Expanded(
+          child: Padding(
+            padding: const EdgeInsets.only(top: 2),
+            child: Text(
+              t.pick(e.subMy, e.subEn),
+              style: ShowType.withMyanmar(
+                ShowType.bodyMuted.copyWith(height: 1.45),
+              ),
+            ),
+          ),
+        ),
+        const SizedBox(width: ShowSpacing.md),
+        EffectCover(effect: e, width: 168),
       ],
     );
   }
@@ -301,7 +294,46 @@ class _EffectRunnerScreenState extends State<EffectRunnerScreen> {
     );
   }
 
-  Widget _slot(int i, T t) {
+  Widget _inputSection(T t) {
+    final photoIdx = [
+      for (var i = 0; i < e.inputs.length; i++)
+        if (!e.inputs[i].textOnly) i
+    ];
+    final textIdx = [
+      for (var i = 0; i < e.inputs.length; i++)
+        if (e.inputs[i].textOnly) i
+    ];
+
+    final Widget photos;
+    if (photoIdx.length == 1) {
+      photos = Align(
+        alignment: Alignment.centerLeft,
+        child: SizedBox(width: 156, child: _slot(photoIdx.first, t, compact: true)),
+      );
+    } else {
+      photos = Row(
+        crossAxisAlignment: CrossAxisAlignment.start,
+        children: [
+          for (var n = 0; n < photoIdx.length; n++) ...[
+            if (n > 0) const SizedBox(width: ShowSpacing.md),
+            Expanded(child: _slot(photoIdx[n], t)),
+          ],
+        ],
+      );
+    }
+
+    if (textIdx.isEmpty) return photos;
+    return Column(
+      crossAxisAlignment: CrossAxisAlignment.stretch,
+      children: [
+        photos,
+        const SizedBox(height: ShowSpacing.md),
+        for (final i in textIdx) _slot(i, t),
+      ],
+    );
+  }
+
+  Widget _slot(int i, T t, {bool compact = false}) {
     final inp = e.inputs[i];
     final textMode = _isText(i);
     final label = textMode
@@ -322,25 +354,23 @@ class _EffectRunnerScreenState extends State<EffectRunnerScreen> {
         ),
         const SizedBox(height: ShowSpacing.sm),
         if (textMode)
-          AspectRatio(
-            aspectRatio: 1,
-            child: Container(
-              padding: const EdgeInsets.all(ShowSpacing.md),
-              decoration: BoxDecoration(
-                color: ShowColors.creamSunken,
-                borderRadius: BorderRadius.circular(14),
-              ),
-              child: TextField(
-                controller: _textCtrls[i],
-                onChanged: (_) => setState(() {}),
-                maxLines: null,
-                expands: true,
-                textAlignVertical: TextAlignVertical.top,
-                style: ShowType.body,
-                decoration: InputDecoration.collapsed(
-                  hintText: t.pick(inp.textHintMy, inp.textHintEn),
-                  hintStyle: ShowType.body.copyWith(color: ShowColors.inkFaint),
-                ),
+          Container(
+            height: compact ? 120 : 112,
+            padding: const EdgeInsets.all(ShowSpacing.md),
+            decoration: BoxDecoration(
+              color: ShowColors.creamSunken,
+              borderRadius: BorderRadius.circular(14),
+            ),
+            child: TextField(
+              controller: _textCtrls[i],
+              onChanged: (_) => setState(() {}),
+              maxLines: null,
+              expands: true,
+              textAlignVertical: TextAlignVertical.top,
+              style: ShowType.body,
+              decoration: InputDecoration.collapsed(
+                hintText: t.pick(inp.textHintMy, inp.textHintEn),
+                hintStyle: ShowType.body.copyWith(color: ShowColors.inkFaint),
               ),
             ),
           )
@@ -355,9 +385,10 @@ class _EffectRunnerScreenState extends State<EffectRunnerScreen> {
                   color: ShowColors.creamSunken,
                   child: bytes != null
                       ? Image.memory(bytes, fit: BoxFit.cover)
-                      : const Center(
+                      : Center(
                           child: HeroIcon(HeroIcons.photo,
-                              size: 30, color: ShowColors.inkFaint),
+                              size: compact ? 22 : 30,
+                              color: ShowColors.inkFaint),
                         ),
                 ),
               ),
@@ -414,8 +445,8 @@ class _EffectRunnerScreenState extends State<EffectRunnerScreen> {
               ? Column(
                   mainAxisSize: MainAxisSize.min,
                   children: [
-                    const CircularProgressIndicator(),
-                    const SizedBox(height: ShowSpacing.lg),
+                    const GeneratingSparkle(),
+                    const SizedBox(height: ShowSpacing.md),
                     AnimatedSwitcher(
                       duration: ShowMotion.base,
                       child: Text(

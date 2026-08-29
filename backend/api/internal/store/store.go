@@ -46,6 +46,7 @@ type Store interface {
 	CreateSession(token, userID string, expiresAt time.Time) error
 	SessionUser(token string) (string, error)
 	DeleteSession(token string) error
+	DeleteSessionsByUser(userID string) error
 
 	// Idempotency: store/replay responses for mutating requests keyed by a
 	// caller-supplied Idempotency-Key (scoped per user/IP + method + path).
@@ -63,6 +64,17 @@ type Store interface {
 	AddCredits(tx *domain.CreditTransaction) (*domain.CreditTransaction, error)
 	ListCredits(userID string) ([]*domain.CreditTransaction, error)
 
+	// Wallets — MutateWallet locks the user, loads/creates the wallet, runs fn,
+	// then persists the wallet and any returned ledger entries in one step.
+	GetWallet(userID string) (*domain.CreditWallet, error)
+	MutateWallet(userID string, fn func(*domain.CreditWallet) ([]*domain.CreditTransaction, error)) (*domain.CreditWallet, []*domain.CreditTransaction, error)
+
+	// Payment orders (store purchases awaiting admin review).
+	CreatePayment(p *domain.PaymentOrder) error
+	GetPayment(id string) (*domain.PaymentOrder, error)
+	ListPayments(status string) ([]*domain.PaymentOrder, error)
+	UpdatePayment(p *domain.PaymentOrder) error
+
 	// Notifications
 	CreateNotification(n *domain.Notification) error
 	ListNotifications(userID string) ([]*domain.Notification, error)
@@ -71,4 +83,13 @@ type Store interface {
 	// Uploads (reference photos)
 	SaveUpload(u *Upload) error
 	GetUpload(id string) (*Upload, error)
+
+	// Catalog (admin-editable store prices and credit amounts)
+	ListPlans() ([]domain.Plan, error)
+	GetPlan(id domain.PlanID) (domain.Plan, error)
+	UpsertPlan(p domain.Plan) error
+	ListStoreItems() ([]domain.StoreItem, error)
+	GetStoreItem(id string) (domain.StoreItem, error)
+	UpsertStoreItem(it domain.StoreItem) error
+	DeleteStoreItem(id string) error
 }

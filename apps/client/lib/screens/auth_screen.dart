@@ -1,12 +1,13 @@
 import 'package:firebase_auth/firebase_auth.dart';
+import 'package:flutter/foundation.dart';
 import 'package:flutter/material.dart';
 import 'package:heroicons/heroicons.dart';
 import 'package:show_ui/show_ui.dart';
 
+import '../api/api_client.dart';
 import '../i18n.dart';
 import '../state/session.dart';
-import 'app_shell.dart';
-import 'waiting_area_screen.dart';
+import 'gate.dart';
 
 /// Sign-in / sign-up. Bold editorial hero, a prominent "Continue with Google"
 /// button, and email/password beneath. After auth, users pass through the
@@ -28,8 +29,18 @@ class _AuthScreenState extends State<AuthScreen> {
 
   void _afterAuth() {
     final s = SessionScope.of(context);
-    Navigator.of(context).pushReplacement(showFadeThroughRoute(
-        s.approved ? const AppShell() : const WaitingAreaScreen()));
+    Navigator.of(context).pushReplacement(showFadeThroughRoute(gateFor(s)));
+  }
+
+  bool _handleGone(Object e) {
+    if (e is! ApiException ||
+        (e.status != 404 && e.code != 'account_deleted')) {
+      return false;
+    }
+    SessionScope.of(context).accountDeleted = true;
+    Navigator.of(context).pushReplacement(
+        showFadeThroughRoute(gateFor(SessionScope.of(context))));
+    return true;
   }
 
   Future<void> _submit() async {
@@ -47,6 +58,8 @@ class _AuthScreenState extends State<AuthScreen> {
       if (!mounted) return;
       _afterAuth();
     } catch (e) {
+      if (!mounted) return;
+      if (_handleGone(e)) return;
       setState(() => _error = '$e');
     } finally {
       if (mounted) setState(() => _busy = false);
@@ -60,16 +73,30 @@ class _AuthScreenState extends State<AuthScreen> {
     });
     final session = SessionScope.of(context);
     try {
-      // Firebase Google popup sign-in (web) → Firebase ID token → our backend.
-      final cred =
-          await FirebaseAuth.instance.signInWithPopup(GoogleAuthProvider());
+      // Web: Google popup. Android/iOS: native account picker / Custom Tab.
+      // signInWithPopup is a web-only API and never shows UI on an APK.
+      final provider = GoogleAuthProvider()
+        ..addScope('email')
+        ..addScope('profile');
+      final cred = kIsWeb
+          ? await FirebaseAuth.instance.signInWithPopup(provider)
+          : await FirebaseAuth.instance.signInWithProvider(provider);
       final idToken = await cred.user?.getIdToken();
       if (idToken == null) throw Exception('No Google token');
       await session.loginWithGoogle(idToken);
       if (!mounted) return;
       _afterAuth();
     } catch (e) {
-      setState(() => _error = '$e');
+      if (!mounted) return;
+      if (_handleGone(e)) return;
+      final t = T.of(context);
+      final raw = '$e';
+      final setup = raw.contains('FirebaseApp') ||
+          raw.contains('FirebaseException') ||
+          raw.contains('ApiException: 10') ||
+          raw.contains('DEVELOPER_ERROR') ||
+          raw.contains('sign_in_failed');
+      setState(() => _error = setup ? t.googleSetupNeeded : t.error(e));
     } finally {
       if (mounted) setState(() => _busy = false);
     }

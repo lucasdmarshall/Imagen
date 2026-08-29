@@ -22,9 +22,9 @@ class Settings(BaseSettings):
     prompt_model_default: str = "google/gemini-3.7-flash"
 
     # Image model ids.
-    #   "nano_banana_pro" -> Gemini 3.1 Flash Lite "Nano Banana Pro"
+    #   "nano_banana_pro" -> Gemini 3 Pro Image "Nano Banana Pro"
     #   "gpt_image"       -> GPT Image 2
-    image_model_nano_banana_pro: str = "google/gemini-3.1-flash-lite-image"
+    image_model_nano_banana_pro: str = "google/gemini-3-pro-image-preview"
     image_model_gpt_image: str = "openai/gpt-image-2"
 
     app_env: str = "development"

@@ -144,8 +144,9 @@ class _EffectsCarousel extends StatelessWidget {
         const SizedBox(height: ShowSpacing.md),
         LayoutBuilder(builder: (context, cons) {
           final cardW = cons.maxWidth * 0.55;
+          final cardH = cardW / 1.5; // 3:2 — matches cover crops
           return SizedBox(
-            height: 150,
+            height: cardH,
             child: ListView.separated(
               scrollDirection: Axis.horizontal,
               padding:

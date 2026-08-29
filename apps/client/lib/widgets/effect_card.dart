@@ -1,13 +1,39 @@
 import 'package:flutter/material.dart';
-import 'package:heroicons/heroicons.dart';
 import 'package:show_ui/show_ui.dart';
 
 import '../data/effects.dart';
 import '../i18n.dart';
 
-/// A matte colour-field card for an [Effect]: big icon, title, Myanmar hint.
-/// Fills its parent's constraints, so the carousel and the gallery grid each
-/// size it. Hover lifts it slightly (web); press scales it.
+/// 3:2 before/after cover photo. Used as the gallery card face and as the
+/// small preview on an individual effect page.
+class EffectCover extends StatelessWidget {
+  const EffectCover({super.key, required this.effect, this.width});
+  final Effect effect;
+  final double? width;
+
+  @override
+  Widget build(BuildContext context) {
+    final face = ClipRRect(
+      borderRadius: BorderRadius.circular(14),
+      child: AspectRatio(
+        aspectRatio: 1.5,
+        child: ColoredBox(
+          color: effect.color,
+          child: Image.asset(
+            effect.coverAsset,
+            fit: BoxFit.cover,
+            alignment: Alignment.center,
+            errorBuilder: (_, _, _) => const SizedBox.shrink(),
+          ),
+        ),
+      ),
+    );
+    return width == null ? face : SizedBox(width: width, child: face);
+  }
+}
+
+/// Photo cover card for an [Effect]. Fills its parent's constraints — the
+/// carousel and gallery both use a 3:2 frame so before/after splits stay visible.
 class EffectCard extends StatefulWidget {
   const EffectCard({super.key, required this.effect, this.onTap});
   final Effect effect;
@@ -37,42 +63,97 @@ class _EffectCardState extends State<EffectCard> {
           curve: ShowMotion.entrance,
           child: ClipRRect(
             borderRadius: BorderRadius.circular(18),
-            child: Container(
-              color: e.color,
-              padding: const EdgeInsets.all(ShowSpacing.md),
-              child: Column(
-                crossAxisAlignment: CrossAxisAlignment.start,
-                mainAxisAlignment: MainAxisAlignment.spaceBetween,
-                children: [
-                  HeroIcon(e.icon,
-                      size: 30, color: cream.withValues(alpha: 0.95)),
-                  Column(
+            child: Stack(
+              fit: StackFit.expand,
+              children: [
+                ColoredBox(color: e.color),
+                Image.asset(
+                  e.coverAsset,
+                  fit: BoxFit.cover,
+                  alignment: Alignment.center,
+                  errorBuilder: (_, _, _) => const SizedBox.shrink(),
+                ),
+                const DecoratedBox(
+                  decoration: BoxDecoration(
+                    gradient: LinearGradient(
+                      begin: Alignment.topCenter,
+                      end: Alignment.bottomCenter,
+                      colors: [
+                        Color(0x00000000),
+                        Color(0x66000000),
+                      ],
+                      stops: [0.62, 1.0],
+                    ),
+                  ),
+                ),
+                Padding(
+                  padding: const EdgeInsets.fromLTRB(
+                      ShowSpacing.sm, ShowSpacing.sm, ShowSpacing.sm, 10),
+                  child: Column(
                     crossAxisAlignment: CrossAxisAlignment.start,
-                    mainAxisSize: MainAxisSize.min,
+                    mainAxisAlignment: MainAxisAlignment.end,
                     children: [
-                      Text(
+                      _StrokedText(
                         t.pick(e.titleMy, e.titleEn),
-                        style: ShowType.h3
-                            .copyWith(color: cream, fontWeight: FontWeight.w700),
-                        maxLines: 1,
-                        overflow: TextOverflow.ellipsis,
+                        style: ShowType.label.copyWith(
+                          fontSize: 13,
+                          height: 1.15,
+                          color: cream,
+                          fontWeight: FontWeight.w700,
+                        ),
                       ),
-                      const SizedBox(height: 2),
-                      Text(
+                      const SizedBox(height: 1),
+                      _StrokedText(
                         t.pick(e.subMy, e.subEn),
-                        style: ShowType.caption
-                            .copyWith(color: cream.withValues(alpha: 0.85)),
+                        style: ShowType.caption.copyWith(
+                          fontSize: 11,
+                          height: 1.2,
+                          color: cream.withValues(alpha: 0.95),
+                        ),
                         maxLines: 2,
-                        overflow: TextOverflow.ellipsis,
                       ),
                     ],
                   ),
-                ],
-              ),
+                ),
+              ],
             ),
           ),
         ),
       ),
+    );
+  }
+}
+
+/// Cream fill with a 1px black outline so type stays readable on any photo.
+///
+/// Do not use [PaintingStyle.stroke] on [TextStyle.foreground] — CanvasKit
+/// skips HarfBuzz shaping for stroked runs, so Myanmar combining marks show
+/// as dotted circles. Offset shadows keep a true outline and still shape.
+class _StrokedText extends StatelessWidget {
+  const _StrokedText(this.text, {required this.style, this.maxLines = 1});
+  final String text;
+  final TextStyle style;
+  final int maxLines;
+
+  static const _outline = Color(0xFF000000);
+  static const _shadows = <Shadow>[
+    Shadow(color: _outline, offset: Offset(-1, -1), blurRadius: 0),
+    Shadow(color: _outline, offset: Offset(0, -1), blurRadius: 0),
+    Shadow(color: _outline, offset: Offset(1, -1), blurRadius: 0),
+    Shadow(color: _outline, offset: Offset(-1, 0), blurRadius: 0),
+    Shadow(color: _outline, offset: Offset(1, 0), blurRadius: 0),
+    Shadow(color: _outline, offset: Offset(-1, 1), blurRadius: 0),
+    Shadow(color: _outline, offset: Offset(0, 1), blurRadius: 0),
+    Shadow(color: _outline, offset: Offset(1, 1), blurRadius: 0),
+  ];
+
+  @override
+  Widget build(BuildContext context) {
+    return Text(
+      text,
+      maxLines: maxLines,
+      overflow: TextOverflow.ellipsis,
+      style: ShowType.withMyanmar(style).copyWith(shadows: _shadows),
     );
   }
 }

@@ -39,10 +39,20 @@ func Error(w http.ResponseWriter, err error) {
 		status, code = http.StatusForbidden, "forbidden"
 	case errors.Is(err, services.ErrInsufficientCredits):
 		status, code = http.StatusPaymentRequired, "insufficient_credits"
+	case errors.Is(err, services.ErrBadRequest):
+		status, code = http.StatusBadRequest, "bad_request"
+	case errors.Is(err, services.ErrConflict):
+		status, code = http.StatusConflict, "conflict"
+	case errors.Is(err, services.ErrAccountDeleted):
+		status, code = http.StatusNotFound, "account_deleted"
 	case errors.Is(err, store.ErrEmailTaken):
 		status, code = http.StatusConflict, "email_taken"
 	case errors.Is(err, store.ErrNotFound):
 		status, code = http.StatusNotFound, "not_found"
+	case errors.Is(err, http.ErrMissingFile):
+		status, code = http.StatusBadRequest, "missing_file"
+	case isBodyTooLarge(err):
+		status, code = http.StatusRequestEntityTooLarge, "payload_too_large"
 	}
 	JSON(w, status, map[string]string{"error": code, "detail": err.Error()})
 }
@@ -63,7 +73,11 @@ func Auth(auth *services.AuthService, next http.HandlerFunc) http.HandlerFunc {
 		}
 		u, err := auth.Authenticate(token)
 		if err != nil {
-			Error(w, services.ErrUnauthorized)
+			Error(w, err)
+			return
+		}
+		if u.Banned && !bannedExempt(r) && u.Role != domain.RoleAdmin {
+			Error(w, services.ErrForbidden)
 			return
 		}
 		ctx := context.WithValue(r.Context(), userKey, u)
@@ -95,4 +109,18 @@ func Bearer(r *http.Request) string {
 		return strings.TrimSpace(h[7:])
 	}
 	return ""
+}
+
+func isBodyTooLarge(err error) bool {
+	var mb *http.MaxBytesError
+	if errors.As(err, &mb) {
+		return true
+	}
+	return err != nil && strings.Contains(err.Error(), "request body too large")
+}
+
+func bannedExempt(r *http.Request) bool {
+	p := r.URL.Path
+	return (r.Method == http.MethodGet && p == "/api/v1/profile") ||
+		(r.Method == http.MethodPost && p == "/api/v1/auth/logout")
 }

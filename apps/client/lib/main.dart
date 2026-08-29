@@ -13,9 +13,10 @@ Future<void> main() async {
   try {
     await Firebase.initializeApp(options: DefaultFirebaseOptions.currentPlatform);
   } catch (_) {}
-  // Register the bundled Myanmar face so SHOW type tokens fall back to it.
-  ShowType.myanmarFontFamily = 'NamKhone';
+  // Bundled OpenType Myanmar face (see pubspec fonts: NotoSansMyanmar).
+  ShowType.myanmarFontFamily = 'NotoSansMyanmar';
   final session = Session(ApiClient());
+  await session.restore();
   runApp(ShowClientApp(session: session));
 }
 

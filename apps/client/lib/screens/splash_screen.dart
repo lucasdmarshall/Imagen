@@ -3,9 +3,7 @@ import 'package:show_ui/show_ui.dart';
 
 import '../i18n.dart';
 import '../state/session.dart';
-import 'app_shell.dart';
-import 'auth_screen.dart';
-import 'waiting_area_screen.dart';
+import 'gate.dart';
 
 /// Minimal splash: the wordmark rises in, an accent rule draws beneath it, then
 /// the tagline fades up. Swiss alignment, no box/card/gradient — motion only.
@@ -38,12 +36,7 @@ class _SplashScreenState extends State<SplashScreen>
   void _next() {
     if (!mounted) return;
     final s = SessionScope.of(context);
-    final Widget home = !s.isAuthenticated
-        ? const AuthScreen()
-        : s.approved
-            ? const AppShell()
-            : const WaitingAreaScreen();
-    Navigator.of(context).pushReplacement(showFadeThroughRoute(home));
+    Navigator.of(context).pushReplacement(showFadeThroughRoute(gateFor(s)));
   }
 
   @override

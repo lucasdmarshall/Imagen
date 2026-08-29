@@ -6,8 +6,8 @@ import 'package:show_ui/show_ui.dart';
 
 import '../i18n.dart';
 import '../state/session.dart';
-import 'app_shell.dart';
 import 'auth_screen.dart';
+import 'gate.dart';
 
 /// Post-login gate: a signed-in but not-yet-approved user waits here. We poll
 /// the profile; the moment an admin approves them, they slide into the app.
@@ -44,10 +44,10 @@ class _WaitingAreaScreenState extends State<WaitingAreaScreen> {
     } catch (_) {}
     if (!mounted) return;
     setState(() => _checking = false);
-    if (s.approved) {
+    if (s.approved || s.banned || s.accountDeleted) {
       _poll?.cancel();
       Navigator.of(context)
-          .pushReplacement(showFadeThroughRoute(const AppShell()));
+          .pushReplacement(showFadeThroughRoute(gateFor(s)));
     }
   }
 

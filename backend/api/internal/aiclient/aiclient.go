@@ -19,7 +19,7 @@ type Client struct {
 }
 
 func New(baseURL string) *Client {
-	return &Client{baseURL: baseURL, http: &http.Client{Timeout: 120 * time.Second}}
+	return &Client{baseURL: baseURL, http: &http.Client{Timeout: 180 * time.Second}}
 }
 
 // GeneratePrompt calls the AI service's prompt composer.

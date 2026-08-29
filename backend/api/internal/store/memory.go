@@ -1,6 +1,7 @@
 package store
 
 import (
+	"fmt"
 	"sort"
 	"sync"
 	"time"
@@ -24,6 +25,10 @@ type Memory struct {
 	notifications map[string][]*domain.Notification      // by userID
 	idem          map[string]IdempotentResult            // idempotency key -> result
 	uploads       map[string]*Upload                     // upload id -> upload
+	wallets       map[string]*domain.CreditWallet
+	payments      map[string]*domain.PaymentOrder
+	plans         map[domain.PlanID]domain.Plan
+	items         map[string]domain.StoreItem
 }
 
 func NewMemory() *Memory {
@@ -36,6 +41,10 @@ func NewMemory() *Memory {
 		notifications: map[string][]*domain.Notification{},
 		idem:          map[string]IdempotentResult{},
 		uploads:       map[string]*Upload{},
+		wallets:       map[string]*domain.CreditWallet{},
+		payments:      map[string]*domain.PaymentOrder{},
+		plans:         map[domain.PlanID]domain.Plan{},
+		items:         map[string]domain.StoreItem{},
 	}
 }
 
@@ -110,6 +119,9 @@ func (m *Memory) ListUsers() ([]*domain.User, error) {
 	defer m.mu.RUnlock()
 	out := make([]*domain.User, 0, len(m.users))
 	for _, u := range m.users {
+		if u.Deleted() {
+			continue
+		}
 		cp := *u
 		out = append(out, &cp)
 	}
@@ -146,6 +158,17 @@ func (m *Memory) DeleteSession(token string) error {
 	m.mu.Lock()
 	defer m.mu.Unlock()
 	delete(m.sessions, token)
+	return nil
+}
+
+func (m *Memory) DeleteSessionsByUser(userID string) error {
+	m.mu.Lock()
+	defer m.mu.Unlock()
+	for tok, s := range m.sessions {
+		if s.userID == userID {
+			delete(m.sessions, tok)
+		}
+	}
 	return nil
 }
 
@@ -240,6 +263,118 @@ func (m *Memory) ListCredits(userID string) ([]*domain.CreditTransaction, error)
 	return out, nil
 }
 
+func (m *Memory) ledgerBalanceLocked(userID string) int {
+	txs := m.credits[userID]
+	if len(txs) == 0 {
+		return 0
+	}
+	return txs[len(txs)-1].Balance
+}
+
+func (m *Memory) ensureWalletLocked(userID string) *domain.CreditWallet {
+	if w, ok := m.wallets[userID]; ok {
+		return w
+	}
+	w := &domain.CreditWallet{
+		UserID:          userID,
+		AddonCredits:    m.ledgerBalanceLocked(userID),
+		SubPeriodEndsAt: time.Now().UTC().AddDate(0, 1, 0),
+	}
+	m.wallets[userID] = w
+	return w
+}
+
+func (m *Memory) GetWallet(userID string) (*domain.CreditWallet, error) {
+	m.mu.Lock()
+	defer m.mu.Unlock()
+	cp := *m.ensureWalletLocked(userID)
+	return &cp, nil
+}
+
+func (m *Memory) MutateWallet(userID string, fn func(*domain.CreditWallet) ([]*domain.CreditTransaction, error)) (*domain.CreditWallet, []*domain.CreditTransaction, error) {
+	m.mu.Lock()
+	defer m.mu.Unlock()
+	cur := m.ensureWalletLocked(userID)
+	w := *cur
+	txs, err := fn(&w)
+	if err != nil {
+		return nil, nil, err
+	}
+	prev := m.ledgerBalanceLocked(userID)
+	out := make([]*domain.CreditTransaction, 0, len(txs))
+	for _, tx := range txs {
+		if tx == nil {
+			continue
+		}
+		cp := *tx
+		cp.UserID = userID
+		if cp.ID == "" {
+			cp.ID = fmt.Sprintf("%d", time.Now().UTC().UnixNano())
+		}
+		if cp.CreatedAt.IsZero() {
+			cp.CreatedAt = time.Now().UTC()
+		}
+		prev += cp.Amount
+		cp.Balance = prev
+		stored := cp
+		m.credits[userID] = append(m.credits[userID], &stored)
+		out = append(out, &cp)
+	}
+	saved := w
+	saved.UserID = userID
+	m.wallets[userID] = &saved
+	ret := saved
+	return &ret, out, nil
+}
+
+func (m *Memory) CreatePayment(p *domain.PaymentOrder) error {
+	m.mu.Lock()
+	defer m.mu.Unlock()
+	cp := *p
+	if cp.CreatedAt.IsZero() {
+		cp.CreatedAt = time.Now().UTC()
+	}
+	m.payments[p.ID] = &cp
+	return nil
+}
+
+func (m *Memory) GetPayment(id string) (*domain.PaymentOrder, error) {
+	m.mu.RLock()
+	defer m.mu.RUnlock()
+	p, ok := m.payments[id]
+	if !ok {
+		return nil, ErrNotFound
+	}
+	cp := *p
+	return &cp, nil
+}
+
+func (m *Memory) ListPayments(status string) ([]*domain.PaymentOrder, error) {
+	m.mu.RLock()
+	defer m.mu.RUnlock()
+	out := make([]*domain.PaymentOrder, 0, len(m.payments))
+	for _, p := range m.payments {
+		if status != "" && p.Status != status {
+			continue
+		}
+		cp := *p
+		out = append(out, &cp)
+	}
+	sort.Slice(out, func(i, j int) bool { return out[i].CreatedAt.After(out[j].CreatedAt) })
+	return out, nil
+}
+
+func (m *Memory) UpdatePayment(p *domain.PaymentOrder) error {
+	m.mu.Lock()
+	defer m.mu.Unlock()
+	if _, ok := m.payments[p.ID]; !ok {
+		return ErrNotFound
+	}
+	cp := *p
+	m.payments[p.ID] = &cp
+	return nil
+}
+
 // --- Notifications ---
 
 func (m *Memory) CreateNotification(n *domain.Notification) error {
@@ -272,4 +407,77 @@ func (m *Memory) MarkNotificationRead(userID, id string) error {
 		}
 	}
 	return ErrNotFound
+}
+
+// --- Catalog ---
+
+func (m *Memory) ListPlans() ([]domain.Plan, error) {
+	m.mu.RLock()
+	defer m.mu.RUnlock()
+	out := make([]domain.Plan, 0, len(m.plans))
+	for _, p := range m.plans {
+		out = append(out, p)
+	}
+	sort.Slice(out, func(i, j int) bool { return out[i].ID < out[j].ID })
+	return out, nil
+}
+
+func (m *Memory) GetPlan(id domain.PlanID) (domain.Plan, error) {
+	m.mu.RLock()
+	defer m.mu.RUnlock()
+	p, ok := m.plans[id]
+	if !ok {
+		return domain.Plan{}, ErrNotFound
+	}
+	return p, nil
+}
+
+func (m *Memory) UpsertPlan(p domain.Plan) error {
+	m.mu.Lock()
+	defer m.mu.Unlock()
+	m.plans[p.ID] = p
+	return nil
+}
+
+func (m *Memory) ListStoreItems() ([]domain.StoreItem, error) {
+	m.mu.RLock()
+	defer m.mu.RUnlock()
+	out := make([]domain.StoreItem, 0, len(m.items))
+	for _, it := range m.items {
+		out = append(out, it)
+	}
+	sort.Slice(out, func(i, j int) bool {
+		if out[i].SortOrder != out[j].SortOrder {
+			return out[i].SortOrder < out[j].SortOrder
+		}
+		return out[i].ID < out[j].ID
+	})
+	return out, nil
+}
+
+func (m *Memory) GetStoreItem(id string) (domain.StoreItem, error) {
+	m.mu.RLock()
+	defer m.mu.RUnlock()
+	it, ok := m.items[id]
+	if !ok {
+		return domain.StoreItem{}, ErrNotFound
+	}
+	return it, nil
+}
+
+func (m *Memory) UpsertStoreItem(it domain.StoreItem) error {
+	m.mu.Lock()
+	defer m.mu.Unlock()
+	m.items[it.ID] = it
+	return nil
+}
+
+func (m *Memory) DeleteStoreItem(id string) error {
+	m.mu.Lock()
+	defer m.mu.Unlock()
+	if _, ok := m.items[id]; !ok {
+		return ErrNotFound
+	}
+	delete(m.items, id)
+	return nil
 }

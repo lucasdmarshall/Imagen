@@ -33,7 +33,7 @@ class GalleryScreen extends StatelessWidget {
                 crossAxisCount: 2,
                 mainAxisSpacing: ShowSpacing.md,
                 crossAxisSpacing: ShowSpacing.md,
-                childAspectRatio: 1.15,
+                childAspectRatio: 1.5,
               ),
               itemCount: effects.length,
               itemBuilder: (context, i) => ShowFadeIn(

@@ -4,9 +4,7 @@ import 'package:show_ui/show_ui.dart';
 
 /// A one-tap image effect shown on the home carousel and the gallery page.
 ///
-/// [prompt] is intentionally blank for now — the exact prompt per effect will
-/// be supplied later. Everything is data-driven, so filling it in is a one-line
-/// change per card with no UI work.
+/// [prompt] is the hidden generation instruction — never shown in the UI.
 /// A labelled input slot on an effect page. Normally a photo-upload slot; when
 /// [allowText] is true the user may instead type a description (e.g. describe a
 /// background in words rather than uploading a reference photo).
@@ -71,6 +69,9 @@ class Effect {
 
   /// Photo inputs the page asks for (Outfit Swap needs two: person + outfit).
   final List<EffectInput> inputs;
+
+  /// Before/after cover used on home carousel and gallery cards.
+  String get coverAsset => 'assets/effects/$id.jpg';
 }
 
 // Matte palette, cycled across the cards (kept flat per the SHOW system).

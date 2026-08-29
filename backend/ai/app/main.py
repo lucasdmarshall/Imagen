@@ -92,8 +92,8 @@ async def generate_prompt(req: PromptRequest) -> dict:
 
 
 class ImageModel(str, Enum):
-    nano_banana_pro = "nano_banana_pro"  # Gemini 3.1 Flash
-    gpt_image = "gpt_image"  # GPT image model
+    nano_banana_pro = "nano_banana_pro"  # Gemini 3 Pro Image
+    gpt_image = "gpt_image"  # GPT Image 2
 
 
 class ImageRequest(BaseModel):
@@ -104,28 +104,6 @@ class ImageRequest(BaseModel):
     images: list[str] = Field(default_factory=list)
 
 
-def _normalize_image(raw: dict) -> dict:
-    """Reduce a chat-completions image response to {"data": [{"url": …}]} so the
-    client parses edit and text-to-image results the same way."""
-    try:
-        msg = raw["choices"][0]["message"]
-    except (KeyError, IndexError, TypeError):
-        return raw
-    if isinstance(msg, dict):
-        for img in msg.get("images") or []:
-            u = (img.get("image_url") or {}).get("url") or img.get("url")
-            if u:
-                return {"data": [{"url": u}]}
-        content = msg.get("content")
-        if isinstance(content, list):
-            for part in content:
-                if isinstance(part, dict) and part.get("type") == "image_url":
-                    u = (part.get("image_url") or {}).get("url")
-                    if u:
-                        return {"data": [{"url": u}]}
-    return raw
-
-
 @app.post("/images/generate")
 async def generate_image(req: ImageRequest) -> dict:
     model_id = {
@@ -134,12 +112,6 @@ async def generate_image(req: ImageRequest) -> dict:
     }[req.model]
 
     try:
-        if req.images:
-            raw = await openrouter.generate_image_edit(
-                model_id, req.prompt, req.images
-            )
-            return _normalize_image(raw)
-        result = await openrouter.generate_image(model_id, req.prompt)
+        return await openrouter.generate_image(model_id, req.prompt, req.images)
     except openrouter.OpenRouterError as e:
         raise HTTPException(status_code=502, detail=str(e)) from e
-    return result

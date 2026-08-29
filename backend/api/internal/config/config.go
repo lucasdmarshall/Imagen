@@ -49,10 +49,15 @@ func Load() Config {
 		AdminPassword: getenv("ADMIN_PASSWORD", ""),
 
 		AllowedOrigins: getlist("ALLOWED_ORIGINS",
-			[]string{"http://localhost:8080", "http://localhost:3000"}),
+			[]string{
+				"http://localhost:5100", "http://localhost:5200",
+				"http://127.0.0.1:5100", "http://127.0.0.1:5200",
+				"http://localhost:8080", "http://localhost:3000",
+			}),
 		RateLimitPerMin: getint("RATE_LIMIT_PER_MIN", 120),
-		// 8 MiB — large enough for reference-photo uploads.
-		MaxBodyBytes: int64(getint("MAX_BODY_BYTES", 8<<20)),
+		// 32 MiB — phone camera JPEGs (and Flutter web, which often skips
+		// client-side resize) otherwise 413 the upload.
+		MaxBodyBytes: int64(getint("MAX_BODY_BYTES", 32<<20)),
 	}
 }
 

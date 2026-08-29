@@ -24,10 +24,10 @@ ai:
 	cd backend/ai && .venv/Scripts/python -m uvicorn app.main:app --reload --port 8000
 
 client:
-	cd apps/client && flutter run -d chrome --dart-define=API_BASE_URL=http://localhost:8080
+	cd apps/client && flutter run -d web-server --web-hostname 127.0.0.1 --web-port 5100 --dart-define=API_BASE_URL=http://localhost:8080
 
 admin:
-	cd apps/admin && flutter run -d chrome --dart-define=API_BASE_URL=http://localhost:8080
+	cd apps/admin && flutter run -d web-server --web-hostname 127.0.0.1 --web-port 5200 --dart-define=API_BASE_URL=http://localhost:8080
 
 get:
 	cd packages/show_ui && flutter pub get

@@ -93,12 +93,17 @@ func (s *Server) handleUpdateProfile(w http.ResponseWriter, r *http.Request) {
 
 func (s *Server) handleBalance(w http.ResponseWriter, r *http.Request) {
 	u := httpx.UserFrom(r.Context())
-	bal, err := s.svc.Credits.Balance(u.ID)
+	wallet, err := s.svc.Credits.Wallet(u.ID)
 	if err != nil {
 		httpx.Error(w, err)
 		return
 	}
-	httpx.JSON(w, http.StatusOK, map[string]int{"balance": bal})
+	httpx.JSON(w, http.StatusOK, map[string]any{
+		"balance":             wallet.Total(),
+		"subscriptionCredits": wallet.SubscriptionCredits,
+		"addonCredits":        wallet.AddonCredits,
+		"subPeriodEndsAt":     wallet.SubPeriodEndsAt,
+	})
 }
 
 func (s *Server) handleCreditHistory(w http.ResponseWriter, r *http.Request) {
@@ -135,11 +140,27 @@ func (s *Server) handleReadNotification(w http.ResponseWriter, r *http.Request) 
 // --- Catalog / subscriptions ---
 
 func (s *Server) handleStoreItems(w http.ResponseWriter, _ *http.Request) {
-	httpx.JSON(w, http.StatusOK, map[string]any{"items": s.svc.Catalog.StoreItems()})
+	items, err := s.svc.Catalog.StoreItems()
+	if err != nil {
+		httpx.Error(w, err)
+		return
+	}
+	if items == nil {
+		items = []domain.StoreItem{}
+	}
+	httpx.JSON(w, http.StatusOK, map[string]any{"items": items})
 }
 
 func (s *Server) handlePlans(w http.ResponseWriter, _ *http.Request) {
-	httpx.JSON(w, http.StatusOK, map[string]any{"plans": s.svc.Catalog.Plans()})
+	plans, err := s.svc.Catalog.Plans()
+	if err != nil {
+		httpx.Error(w, err)
+		return
+	}
+	if plans == nil {
+		plans = []domain.Plan{}
+	}
+	httpx.JSON(w, http.StatusOK, map[string]any{"plans": plans})
 }
 
 func (s *Server) handleMySubscription(w http.ResponseWriter, r *http.Request) {

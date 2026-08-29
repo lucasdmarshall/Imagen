@@ -16,3 +16,15 @@ func randHex(n int) string {
 	_, _ = rand.Read(b)
 	return hex.EncodeToString(b)
 }
+
+// tempPassword is a one-time password an admin can give a user who forgot theirs.
+func tempPassword() string {
+	const alphabet = "ABCDEFGHJKLMNPQRSTUVWXYZabcdefghijkmnopqrstuvwxyz23456789"
+	b := make([]byte, 10)
+	_, _ = rand.Read(b)
+	out := make([]byte, 10)
+	for i := range out {
+		out[i] = alphabet[int(b[i])%len(alphabet)]
+	}
+	return string(out)
+}

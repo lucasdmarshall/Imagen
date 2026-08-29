@@ -36,33 +36,19 @@ async def chat_completion(model: str, messages: list[dict]) -> dict:
     return resp.json()
 
 
-async def generate_image(model: str, prompt: str) -> dict:
-    """Call the image generation endpoint (used by Image Generator)."""
-    url = f"{settings.openrouter_base_url}/images/generations"
-    payload = {"model": model, "prompt": prompt}
-    async with httpx.AsyncClient(timeout=120) as client:
-        resp = await client.post(url, headers=_headers(), json=payload)
-    if resp.status_code >= 400:
-        raise OpenRouterError(f"{resp.status_code}: {resp.text}")
-    return resp.json()
+async def generate_image(model: str, prompt: str, images: list[str] | None = None) -> dict:
+    """Text-to-image, or image-to-image when [images] (data URLs / https) are set.
 
-
-async def generate_image_edit(model: str, prompt: str, images: list[str]) -> dict:
-    """Multimodal image edit: input image(s) + prompt -> a new image.
-
-    Used by the effect pages (Outfit Swap, Face Swap, …). Gemini image models
-    take images as input and return an image, via chat/completions with the
-    image output modality. [images] are data URLs or https URLs.
+    Uses OpenRouter's Image API (`POST /images`). Chat completions + modalities
+    404s for these models: "No endpoints found that support the requested
+    output modalities: image, text".
     """
-    url = f"{settings.openrouter_base_url}/chat/completions"
-    content: list[dict] = [{"type": "text", "text": prompt}]
-    for img in images:
-        content.append({"type": "image_url", "image_url": {"url": img}})
-    payload = {
-        "model": model,
-        "messages": [{"role": "user", "content": content}],
-        "modalities": ["image", "text"],
-    }
+    url = f"{settings.openrouter_base_url}/images"
+    payload: dict = {"model": model, "prompt": prompt}
+    if images:
+        payload["input_references"] = [
+            {"type": "image_url", "image_url": {"url": img}} for img in images
+        ]
     async with httpx.AsyncClient(timeout=180) as client:
         resp = await client.post(url, headers=_headers(), json=payload)
     if resp.status_code >= 400:

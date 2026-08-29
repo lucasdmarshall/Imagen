@@ -37,6 +37,16 @@ class _CreditsScreenState extends State<CreditsScreen> {
           const SizedBox(height: ShowSpacing.lg),
           Text('${session.balance}', style: ShowType.display),
           Text(t.creditsAvailable, style: ShowType.bodyMuted),
+          const SizedBox(height: ShowSpacing.lg),
+          _bucket(
+            t.planCreditsLabel,
+            session.subscriptionCredits,
+            session.subPeriodEndsAt == null || session.subPeriodEndsAt!.isEmpty
+                ? t.neverExpires
+                : t.expiresOn(_fmtDate(session.subPeriodEndsAt!)),
+          ),
+          const SizedBox(height: ShowSpacing.sm),
+          _bucket(t.addonCreditsLabel, session.addonCredits, t.neverExpires),
           ShowSectionHeader(t.history),
           FutureBuilder<List<dynamic>>(
             future: _history,
@@ -66,6 +76,29 @@ class _CreditsScreenState extends State<CreditsScreen> {
         ],
       ),
     );
+  }
+
+  Widget _bucket(String label, int amount, String hint) {
+    return Row(
+      children: [
+        Expanded(
+          child: Column(
+            crossAxisAlignment: CrossAxisAlignment.start,
+            children: [
+              Text(label, style: ShowType.body),
+              Text(hint, style: ShowType.caption.copyWith(color: ShowColors.inkMuted)),
+            ],
+          ),
+        ),
+        Text('$amount', style: ShowType.h3),
+      ],
+    );
+  }
+
+  String _fmtDate(String iso) {
+    final d = DateTime.tryParse(iso)?.toLocal();
+    if (d == null) return iso;
+    return '${d.day}/${d.month}/${d.year}';
   }
 
   Widget _txRow(Map<String, dynamic> tx) {

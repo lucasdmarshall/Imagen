@@ -9,6 +9,7 @@ import '../i18n.dart';
 import '../models/flow.dart';
 import '../state/session.dart';
 import '../state/wizard_controller.dart';
+import '../util/image_pick.dart';
 import 'prompt_review_screen.dart';
 
 /// Renders the guided questionnaire one question at a time.
@@ -67,7 +68,7 @@ class _WizardScreenState extends State<WizardScreen> {
   Future<void> _pickImage(FlowNode node, ImageSource source) async {
     final api = SessionScope.of(context).api;
     final messenger = ScaffoldMessenger.of(context);
-    final picked = await ImagePicker().pickImage(source: source, maxWidth: 1600);
+    final picked = await pickCompressedImage(source: source);
     if (picked == null) return;
     final bytes = await picked.readAsBytes();
     setState(() => _imageBytes = bytes);
